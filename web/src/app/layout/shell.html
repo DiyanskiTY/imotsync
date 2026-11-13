@@ -1,0 +1,68 @@
+<a
+  href="#main-content"
+  class="sr-only rounded-border bg-primary px-4 py-2 font-medium text-primary-contrast focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50"
+  (click)="skipToMainContent($event)"
+>
+  Skip to main content
+</a>
+
+<div class="flex min-h-screen flex-col">
+  <header class="sticky top-0 z-40 border-b border-surface bg-surface-0/90 backdrop-blur">
+    <div class="mx-auto flex h-16 w-full max-w-6xl items-center gap-4 px-4 sm:gap-8 sm:px-6">
+      <a
+        routerLink="/dashboard"
+        class="flex shrink-0 items-center gap-2.5 rounded-border text-color focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+      >
+        <svg class="size-8" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="8" class="fill-primary" />
+          <path
+            d="M8 15.5 16 9l8 6.5V23a1 1 0 0 1-1 1h-4.5v-5h-5v5H9a1 1 0 0 1-1-1z"
+            fill="none"
+            stroke="white"
+            stroke-width="2.25"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <span class="text-lg font-semibold tracking-tight">
+          Imot<span class="text-primary">Sync</span>
+        </span>
+      </a>
+
+      <nav aria-label="Main" class="min-w-0">
+        <ul class="flex items-center gap-1">
+          @for (item of navItems; track item.path) {
+            <li>
+              <a
+                [routerLink]="item.path"
+                routerLinkActive
+                ariaCurrentWhenActive="page"
+                class="flex items-center gap-2 rounded-border px-3 py-2 text-sm font-medium text-muted-color transition-colors hover:bg-emphasis hover:text-color focus-visible:outline-2 focus-visible:outline-primary aria-[current=page]:bg-highlight"
+              >
+                <i [class]="item.icon" aria-hidden="true"></i>
+                <span class="sr-only sm:not-sr-only">{{ item.label }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main
+    #mainContent
+    id="main-content"
+    tabindex="-1"
+    class="mx-auto w-full max-w-6xl flex-1 px-4 py-8 outline-none sm:px-6"
+  >
+    <router-outlet />
+  </main>
+
+  <footer class="border-t border-surface">
+    <div
+      class="mx-auto flex w-full max-w-6xl flex-wrap justify-between gap-2 px-4 py-4 text-sm text-muted-color sm:px-6"
+    >
+      <span>ImotSync: prepare a property once, publish it to every portal.</span>
+      <span>Demo environment with made-up listings.</span>
+    </div>
+  </footer>
+</div>

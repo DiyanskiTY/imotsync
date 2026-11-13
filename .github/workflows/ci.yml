@@ -1,0 +1,171 @@
+name: CI
+
+on: [push, pull_request]
+
+# A newer push to the same branch or pull request cancels the run still in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: api
+
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_DATABASE: imotsync
+          MARIADB_USER: imotsync
+          MARIADB_PASSWORD: imotsync_dev
+          MARIADB_ROOT_PASSWORD: root_dev
+        ports:
+          - '3306:3306'
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+          --health-start-period 10s
+
+    env:
+      NODE_ENV: test
+      CORS_ORIGIN: http://localhost:4200
+      # CI-only value; it signs nothing outside this workflow.
+      JWT_SECRET: ci-only-jwt-secret-not-used-anywhere-else-0123456789
+      UPLOAD_DIR: ./uploads
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: imotsync
+      DB_USER: imotsync
+      DB_PASSWORD: imotsync_dev
+      DB_ROOT_PASSWORD: root_dev
+      SEED_DEMO_PASSWORD: demo1234
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # Runs the compiled entry points the way docker-compose.yml does (production mode, demo seed
+      # allowed), so a broken import in dist/ fails here and not on `docker compose up`. It uses
+      # the service's own database; the integration tests below create a separate one.
+      - name: Smoke-test the compiled build (MariaDB service)
+        env:
+          NODE_ENV: production
+          ALLOW_DEMO_SEED: 'true'
+        run: |
+          node dist/db/migrate.js latest
+          status="$(node dist/db/migrate.js status)"
+          echo "$status"
+          grep -q ', 0 pending$' <<< "$status"
+          node dist/db/seed.js
+
+          server_log="$RUNNER_TEMP/api-server.log"
+          node dist/server.js > "$server_log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2> /dev/null || true' EXIT
+          health=''
+          for _ in $(seq 1 30); do
+            if health="$(curl -fsS "http://127.0.0.1:${API_PORT:-3000}/api/health")"; then break; fi
+            sleep 1
+          done
+          echo "$health"
+          if ! grep -q '"status":"ok"' <<< "$health"; then
+            cat "$server_log"
+            exit 1
+          fi
+
+      - name: Integration tests (MariaDB service)
+        run: npm run test:integration
+
+      - name: Build Docker image
+        run: docker build --tag imotsync-api:ci .
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+
+    env:
+      NG_CLI_ANALYTICS: 'false'
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  repo:
+    name: Repository files
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      # Files outside api/ and web/ belong to neither package's format:check, so they are checked
+      # here with the root config. Keep the Prettier version in step with api/ and web/.
+      - name: Check formatting
+        run: npx --yes prettier@3.10.1 --check README.md docs .github .vscode docker-compose.yml .prettierrc.json

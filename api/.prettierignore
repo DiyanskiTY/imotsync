@@ -1,0 +1,5 @@
+# Prettier reads .prettierignore only from the directory it runs in, so the API keeps its own.
+dist
+coverage
+uploads
+package-lock.json

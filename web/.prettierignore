@@ -1,0 +1,7 @@
+# Prettier reads ignore files from the folder it runs in, so web/ needs its own list.
+node_modules
+dist
+coverage
+.angular
+out-tsc
+package-lock.json

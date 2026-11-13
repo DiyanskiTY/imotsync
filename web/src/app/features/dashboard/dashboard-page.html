@@ -1,0 +1,112 @@
+<app-page-header
+  heading="Dashboard"
+  description="Live status of the ImotSync API and its database."
+>
+  <p-button
+    label="Refresh"
+    icon="pi pi-refresh"
+    severity="secondary"
+    [outlined]="true"
+    [loading]="loading()"
+    (onClick)="refresh()"
+  />
+</app-page-header>
+
+<section aria-labelledby="system-status-heading">
+  <div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+    <h2 id="system-status-heading" class="text-lg font-semibold text-color">System status</h2>
+    <p class="text-sm text-muted-color" role="status">
+      @if (checkedAt(); as time) {
+        Last checked at {{ time | date: 'mediumTime' }}
+      } @else {
+        Checking the API…
+      }
+    </p>
+  </div>
+
+  @if (failure(); as error) {
+    <p-message severity="error" icon="pi pi-times-circle" styleClass="mb-4">
+      <span>
+        <strong class="font-semibold">{{ error.message }}</strong>
+        <span class="font-normal">
+          @if (error.unreachable && showDevHints) {
+            Make sure it is running (<code>npm run dev</code> in <code>api/</code>, or
+            <code>docker compose up -d --build</code>), then refresh.
+          } @else {
+            Refresh to try again.
+          }
+        </span>
+      </span>
+    </p-message>
+  }
+
+  @if (databaseDown()) {
+    <p-message severity="warn" icon="pi pi-exclamation-triangle" styleClass="mb-4">
+      <span>
+        <strong class="font-semibold">The API is running but cannot reach the database.</strong>
+        <span class="font-normal">
+          @if (showDevHints) {
+            Check that the database container is up (<code>docker compose up -d db</code>).
+          } @else {
+            Refresh to check again.
+          }
+        </span>
+      </span>
+    </p-message>
+  }
+
+  <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Status indicators">
+    @for (tile of tiles(); track tile.label) {
+      <li>
+        <p-card class="h-full">
+          <h3 class="flex items-center gap-2 text-sm font-medium text-muted-color">
+            <i [class]="tile.icon" aria-hidden="true"></i>
+            {{ tile.label }}
+          </h3>
+          <div
+            class="mt-3 flex min-h-8 items-center"
+            [attr.data-testid]="'tile-value-' + tile.label"
+          >
+            @if (loading()) {
+              <p-skeleton width="6rem" height="1.75rem" />
+            } @else if (tile.severity) {
+              <p-tag [value]="tile.value" [severity]="tile.severity" />
+            } @else {
+              <span class="text-2xl font-semibold tracking-tight text-color">{{ tile.value }}</span>
+            }
+          </div>
+          <p class="mt-2 min-h-5 text-sm text-muted-color">
+            @if (loading()) {
+              <p-skeleton width="8rem" height="1rem" />
+            } @else {
+              {{ tile.detail }}
+            }
+          </p>
+        </p-card>
+      </li>
+    }
+  </ul>
+</section>
+
+<section aria-labelledby="how-it-works-heading" class="mt-10">
+  <h2 id="how-it-works-heading" class="mb-4 text-lg font-semibold text-color">How it works</h2>
+  <ol class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    @for (step of steps; track step.title; let index = $index) {
+      <li class="rounded-xl border border-surface bg-surface-0 p-5">
+        <div class="flex items-center gap-3">
+          <span
+            class="flex size-9 items-center justify-center rounded-full bg-highlight"
+            aria-hidden="true"
+          >
+            <i [class]="step.icon"></i>
+          </span>
+          <h3 class="font-semibold text-color">
+            <span class="sr-only">Step {{ index + 1 }}:</span>
+            {{ step.title }}
+          </h3>
+        </div>
+        <p class="mt-3 text-sm text-muted-color">{{ step.text }}</p>
+      </li>
+    }
+  </ol>
+</section>

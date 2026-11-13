@@ -1,0 +1,76 @@
+# ImotSync — local stack.
+#   docker compose up -d --wait db           # just the database (for running api/web locally)
+#   docker compose up -d --build --wait      # database + API container
+# Values come from the root .env file (copy .env.example). Defaults below match it.
+
+name: imotsync
+
+services:
+  db:
+    image: mariadb:11.8
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_NAME:-imotsync}
+      MARIADB_USER: ${DB_USER:-imotsync}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-imotsync_dev}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_dev}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      # Host port defaults to 3307 so it does not clash with a local MariaDB/MySQL on 3306.
+      - '${DB_PORT:-3307}:3306'
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  api:
+    build:
+      context: ./api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # Apply pending migrations, then start the HTTP server.
+    # A JWT_SECRET that is empty or still a public dev-only placeholder (as in .env.example) is
+    # never used here: the container generates a random one at each start instead, so tokens do
+    # not survive a restart. Set your own value in .env to keep them valid.
+    command:
+      - sh
+      - -c
+      - |
+        case "$${JWT_SECRET:-}" in
+          '' | dev-only*)
+            echo 'JWT_SECRET is empty or a public dev-only placeholder: using a random secret for this container start.' >&2
+            JWT_SECRET="$$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")"
+            export JWT_SECRET
+            ;;
+        esac
+        node dist/db/migrate.js latest && exec node dist/server.js
+    environment:
+      NODE_ENV: production
+      API_PORT: 3000
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4200}
+      JWT_SECRET: ${JWT_SECRET:-}
+      UPLOAD_DIR: /app/uploads
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-imotsync}
+      DB_USER: ${DB_USER:-imotsync}
+      DB_PASSWORD: ${DB_PASSWORD:-imotsync_dev}
+      # This stack is a demo with made-up data, so the seed script may run here.
+      ALLOW_DEMO_SEED: 'true'
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-demo1234}
+    ports:
+      - '${API_PORT:-3000}:3000'
+    volumes:
+      - uploads:/app/uploads
+
+volumes:
+  db_data:
+  uploads:
