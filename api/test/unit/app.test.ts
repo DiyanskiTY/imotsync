@@ -8,13 +8,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { createLogger } from '../../src/logger.js';
 import type { ErrorBody } from '../../src/middleware/error-handler.js';
-import { healthyDb, makeConfig } from './helpers.js';
+import { LOGIN_RATE_LIMIT_DEFAULTS } from '../../src/modules/auth/login-rate-limit.js';
+import { dbWithAdmin, makeConfig, tokenFor } from './helpers.js';
 
 /** Content of a file next to UPLOAD_DIR (not inside it): no /uploads URL may return it. */
 const OUTSIDE_SECRET = 'outside-upload-dir-sentinel';
 
 let tempDir: string;
 let app: ReturnType<typeof createApp>;
+let token: string;
 
 beforeAll(async () => {
   // <tempDir>/uploads is UPLOAD_DIR; <tempDir>/secret.txt is one level above it.
@@ -29,7 +31,8 @@ beforeAll(async () => {
     UPLOAD_DIR: uploadDir,
     CORS_ORIGIN: 'http://localhost:4200, https://admin.example.test',
   });
-  app = createApp({ config, logger: createLogger(config), db: healthyDb() });
+  app = createApp({ config, logger: createLogger(config), db: dbWithAdmin() });
+  token = await tokenFor(config);
 });
 
 afterAll(async () => {
@@ -60,8 +63,17 @@ async function rawGet(requestPath: string): Promise<{ status: number; body: stri
 }
 
 describe('unknown routes', () => {
-  it('returns a JSON 404 for an unknown /api route', async () => {
+  it('asks for a token before revealing whether an /api route exists', async () => {
     const res = await request(app).get('/api/does-not-exist');
+
+    expect(res.status).toBe(401);
+    expect((res.body as ErrorBody).error.code).toBe('UNAUTHORIZED');
+  });
+
+  it('returns a JSON 404 for an unknown /api route', async () => {
+    const res = await request(app)
+      .get('/api/does-not-exist')
+      .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(404);
     expect(res.headers['content-type']).toMatch(/application\/json/);
@@ -71,7 +83,7 @@ describe('unknown routes', () => {
   });
 
   it('returns a JSON 404 for other methods and paths too', async () => {
-    const res = await request(app).delete('/api/health');
+    const res = await request(app).delete('/api/health').set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(404);
     expect((res.body as ErrorBody).error.code).toBe('NOT_FOUND');
@@ -79,6 +91,13 @@ describe('unknown routes', () => {
 });
 
 describe('request parsing', () => {
+  it('returns a JSON 404 outside /api without a token', async () => {
+    const res = await request(app).get('/nothing-here');
+
+    expect(res.status).toBe(404);
+    expect((res.body as ErrorBody).error.code).toBe('NOT_FOUND');
+  });
+
   it('answers malformed JSON with a 400 JSON error', async () => {
     const res = await request(app)
       .post('/api/anything')
@@ -91,6 +110,28 @@ describe('request parsing', () => {
     });
   });
 
+  it.each([
+    ['charset', { 'Content-Type': 'application/json; charset=latin-9' }],
+    ['encoding', { 'Content-Type': 'application/json', 'Content-Encoding': 'compress' }],
+  ])('answers a body %s it cannot read with 415 UNSUPPORTED_MEDIA_TYPE', async (_name, headers) => {
+    const res = await request(app).post('/api/anything').set(headers).send('{"title":"x"}');
+
+    expect(res.status).toBe(415);
+    expect((res.body as ErrorBody).error.code).toBe('UNSUPPORTED_MEDIA_TYPE');
+  });
+
+  it('answers a path with broken percent-encoding with 400 VALIDATION_ERROR', async () => {
+    const res = await request(app)
+      .get('/api/properties/%E0%A4%A')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+    expect((res.body as ErrorBody).error).toMatchObject({
+      code: 'VALIDATION_ERROR',
+      details: [{ field: 'path', message: 'contains invalid percent-encoding' }],
+    });
+  });
+
   it('rejects bodies over the size limit with 413', async () => {
     const res = await request(app)
       .post('/api/anything')
@@ -100,6 +141,49 @@ describe('request parsing', () => {
     expect(res.status).toBe(413);
     expect((res.body as ErrorBody).error.code).toBe('PAYLOAD_TOO_LARGE');
   });
+});
+
+describe('login rate limit', () => {
+  const loginFrom = (target: ReturnType<typeof createApp>, forwardedFor: string) =>
+    request(target).post('/api/auth/login').set('X-Forwarded-For', forwardedFor).send({});
+
+  const appWith = (env: Record<string, string>, loginRateLimit?: { limit: number }) => {
+    const config = makeConfig(env);
+    return createApp({ config, logger: createLogger(config), db: dbWithAdmin(), loginRateLimit });
+  };
+
+  it('allows 10 attempts per 15 minutes by default', async () => {
+    const res = await request(appWith({})).post('/api/auth/login').send({});
+
+    expect(LOGIN_RATE_LIMIT_DEFAULTS).toEqual({ windowMs: 15 * 60 * 1000, limit: 10 });
+    expect(res.headers['ratelimit-policy']).toMatch(/q=10; ?w=900/);
+    expect(res.headers.ratelimit).toMatch(/r=9/);
+  });
+
+  it('ignores X-Forwarded-For without TRUST_PROXY, so a forged one gets no fresh limit', async () => {
+    const limited = appWith({}, { limit: 2 });
+    const statuses = [];
+    for (const address of ['203.0.113.1', '203.0.113.2', '203.0.113.3']) {
+      statuses.push((await loginFrom(limited, address)).status);
+    }
+
+    expect(statuses).toEqual([400, 400, 429]);
+  });
+
+  it.each(['loopback', '1'])(
+    'counts per X-Forwarded-For client behind a trusted proxy (TRUST_PROXY=%s)',
+    async (trustProxy) => {
+      const limited = appWith({ TRUST_PROXY: trustProxy }, { limit: 2 });
+      const statuses = [];
+      for (const address of ['203.0.113.1', '203.0.113.2', '203.0.113.3']) {
+        statuses.push((await loginFrom(limited, address)).status);
+      }
+      statuses.push((await loginFrom(limited, '203.0.113.1')).status);
+      statuses.push((await loginFrom(limited, '203.0.113.1')).status);
+
+      expect(statuses).toEqual([400, 400, 400, 400, 429]);
+    },
+  );
 });
 
 describe('security headers and CORS', () => {

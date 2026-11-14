@@ -2,6 +2,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import type { Knex } from 'knex';
 import { hashPassword } from '../../lib/password.js';
+import { UPLOADED_PHOTOS_FOLDER } from '../../modules/images/stored-files.js';
 import type { NewJob, NewPortalListing, NewProperty, NewPropertyImage, NewUser } from '../types.js';
 import { DEMO_PROPERTIES, DEMO_USERS, refCodeFor } from './demo-data.js';
 import { createPlaceholderPhoto } from './placeholder-photos.js';
@@ -33,7 +34,9 @@ const REQUIRED_TABLES = ['users', 'properties', 'property_images', 'portal_listi
  *
  * Rows get fixed ids, so running the seed twice produces the same data (and the same
  * IS-00001... reference codes). Photos are generated first; the wipe and all inserts then
- * run in one transaction, so a failure leaves the previous data in place.
+ * run in one transaction, so a failure leaves the previous data in place. Once that has
+ * committed, the photos uploaded through the API (UPLOAD_DIR/properties) are deleted:
+ * their rows are gone, and the property ids they are filed under start over.
  */
 export async function runDemoSeed(db: Knex, options: DemoSeedOptions): Promise<DemoSeedSummary> {
   for (const table of REQUIRED_TABLES) {
@@ -180,6 +183,7 @@ export async function runDemoSeed(db: Knex, options: DemoSeedOptions): Promise<D
     await trx('portal_listings').insert(listings);
     await trx('jobs').insert(jobs);
   });
+  await rm(path.join(options.uploadDir, UPLOADED_PHOTOS_FOLDER), { recursive: true, force: true });
 
   return {
     users: users.length,

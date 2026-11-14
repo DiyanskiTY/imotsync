@@ -57,6 +57,13 @@ services:
       API_PORT: 3000
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4200}
       JWT_SECRET: ${JWT_SECRET:-}
+      # Login token lifetime in seconds (60 to 2592000); 28800 = 8 hours, as in api/src/config.ts.
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-28800}
+      # false = no reverse proxy. Behind one, set the number of proxies in front of the API
+      # (usually 1, only if port 3000 is reachable solely through them) or the proxies' addresses
+      # or subnets as this container sees them, comma-separated. Never true: with
+      # NODE_ENV=production the API refuses it and does not start. See README, Behind a reverse proxy.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
       UPLOAD_DIR: /app/uploads
       DB_HOST: db
       DB_PORT: 3306

@@ -1,12 +1,28 @@
 import cors from 'cors';
-import express, { type Express } from 'express';
+import express, { Router, type Express } from 'express';
 import helmet from 'helmet';
 import type { Knex } from 'knex';
 import type { Config } from './config.js';
+import { LocalFileStorage, PUBLIC_UPLOADS_PATH, type FileStorage } from './lib/storage.js';
 import type { Logger } from './logger.js';
 import { createErrorHandler } from './middleware/error-handler.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { createRequestLogger } from './middleware/request-logger.js';
+import { createUserRepository } from './modules/auth/auth.repository.js';
+import { createAuthRouter } from './modules/auth/auth.router.js';
+import { createAuthService } from './modules/auth/auth.service.js';
+import {
+  createLoginRateLimiter,
+  type LoginRateLimitOptions,
+} from './modules/auth/login-rate-limit.js';
+import { createRequireAuth } from './modules/auth/require-auth.js';
+import { createTokenService } from './modules/auth/tokens.js';
+import { createImagesRouter } from './modules/images/images.router.js';
+import { createImagesService } from './modules/images/images.service.js';
+import { createPropertiesRouter } from './modules/properties/properties.router.js';
+import { createPropertiesService } from './modules/properties/properties.service.js';
+import { createDocsHandlers, createOpenApiRouter } from './openapi/docs.js';
+import { buildOpenApiDocument, DOCS_PATH } from './openapi/document.js';
 import { createHealthRouter } from './routes/health.js';
 
 export interface AppDeps {
@@ -15,31 +31,103 @@ export interface AppDeps {
   logger: Logger;
   /** Database check timeout for GET /api/health (default 2000 ms). */
   healthCheckTimeoutMs?: number;
+  /** Photo storage (default: LocalFileStorage in config.uploadDir). */
+  storage?: FileStorage;
+  /** Login rate limit (default: 10 attempts per 15 minutes per IP). */
+  loginRateLimit?: LoginRateLimitOptions;
+  /** Photo uploads handled at the same time (default 2); more are answered with 429. */
+  maxConcurrentUploads?: number;
+  /** Milliseconds a photo upload's body has to arrive in (default 60 s); later, 408. */
+  uploadBodyTimeoutMs?: number;
+}
+
+/** Response headers browser clients on other origins (the admin panel) may read. */
+const EXPOSED_HEADERS = [
+  'Location',
+  'X-Request-Id',
+  'Retry-After',
+  'RateLimit',
+  'RateLimit-Policy',
+];
+
+export interface ApiRouterDeps {
+  config: Config;
+  db: Knex;
+  logger: Logger;
+  storage: FileStorage;
+  healthCheckTimeoutMs: number;
+  loginRateLimit?: LoginRateLimitOptions;
+  maxConcurrentUploads?: number;
+  uploadBodyTimeoutMs?: number;
+}
+
+/**
+ * All /api routes, in one router mounted at /api. Public routes come first; everything
+ * after the requireAuth line needs a valid token, so a route added there later is
+ * protected by default (an unknown /api path also answers 401 until a token is sent).
+ */
+export function createApiRouter(deps: ApiRouterDeps): Router {
+  const { config, db, logger, storage } = deps;
+
+  const tokens = createTokenService({ secret: config.jwtSecret, ttlSeconds: config.jwtTtlSeconds });
+  const users = createUserRepository(db);
+  const requireAuth = createRequireAuth({ tokens, users });
+
+  const api = Router();
+  api.use(createHealthRouter({ db, timeoutMs: deps.healthCheckTimeoutMs }));
+  api.use(createOpenApiRouter(buildOpenApiDocument()));
+  api.use(
+    createAuthRouter({
+      auth: createAuthService({ users, tokens }),
+      requireAuth,
+      loginRateLimiter: createLoginRateLimiter(deps.loginRateLimit),
+    }),
+  );
+
+  api.use(requireAuth);
+  api.use(createPropertiesRouter({ properties: createPropertiesService({ db, storage, logger }) }));
+  api.use(
+    createImagesRouter({
+      images: createImagesService({ db, storage, logger }),
+      maxConcurrentUploads: deps.maxConcurrentUploads,
+      uploadBodyTimeoutMs: deps.uploadBodyTimeoutMs,
+    }),
+  );
+  return api;
 }
 
 /**
  * Builds the Express application. Everything with side effects (database, logger,
- * configuration) is passed in, so tests can run the app without a database.
+ * configuration, file storage) is passed in, so tests can run the app without a database.
  */
-export function createApp({ config, db, logger, healthCheckTimeoutMs = 2000 }: AppDeps): Express {
+export function createApp(deps: AppDeps): Express {
+  const { config, logger } = deps;
+  const storage = deps.storage ?? new LocalFileStorage(config.uploadDir);
+  const healthCheckTimeoutMs = deps.healthCheckTimeoutMs ?? 2000;
+
   const app = express();
 
   app.disable('x-powered-by');
+  // Behind a reverse proxy, req.ip (used by the login rate limit) must come from
+  // X-Forwarded-For, but only for the proxies listed in TRUST_PROXY.
+  app.set('trust proxy', config.trustProxy);
   app.use(createRequestLogger(logger));
   // Helmet's default Cross-Origin-Resource-Policy (same-origin) stays on the API's own
   // responses; /uploads overrides it below.
   app.use(helmet());
-  app.use(cors({ origin: config.corsOrigins }));
+  app.use(cors({ origin: config.corsOrigins, exposedHeaders: EXPOSED_HEADERS }));
   app.use(express.json({ limit: '1mb' }));
 
-  app.use('/api', createHealthRouter({ db, timeoutMs: healthCheckTimeoutMs }));
+  // Swagger UI (public, static files only), with its own CSP adjustment.
+  app.use(DOCS_PATH, ...createDocsHandlers());
+  app.use('/api', createApiRouter({ ...deps, storage, healthCheckTimeoutMs }));
 
   // Property photos. No directory listing, no index.html, no redirect for folder paths.
   // The photos are public by design (portals download them by URL), and the admin panel
   // may run on another site (CORS_ORIGIN accepts several origins), so <img> tags on any
   // origin may load them.
   app.use(
-    '/uploads',
+    PUBLIC_UPLOADS_PATH,
     express.static(config.uploadDir, {
       index: false,
       redirect: false,

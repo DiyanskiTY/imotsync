@@ -174,11 +174,17 @@ export type NewJob = Optional<
   result?: string | null;
 };
 
+/**
+ * Update shape that may also set a column to an SQL expression, e.g. updated_at to
+ * db.fn.now() (CURRENT_TIMESTAMP, the database clock in UTC).
+ */
+export type UpdateWithRaw<Row> = { [Key in keyof Row]?: Row[Key] | Knex.Raw };
+
 // Typed query builders: db('properties') knows its row, insert and update shapes.
 declare module 'knex/types/tables.js' {
   interface Tables {
     users: Knex.CompositeTableType<UserRow, NewUser, Partial<NewUser>>;
-    properties: Knex.CompositeTableType<PropertyRow, NewProperty, Partial<NewProperty>>;
+    properties: Knex.CompositeTableType<PropertyRow, NewProperty, UpdateWithRaw<NewProperty>>;
     property_images: Knex.CompositeTableType<
       PropertyImageRow,
       NewPropertyImage,

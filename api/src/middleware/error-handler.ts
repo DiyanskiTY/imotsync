@@ -1,9 +1,13 @@
-import { STATUS_CODES } from 'node:http';
 import type { ErrorRequestHandler } from 'express';
-import { HttpError } from '../lib/http-error.js';
+import {
+  HttpError,
+  validationError,
+  type ApiErrorCode,
+  type FieldIssue,
+} from '../lib/http-error.js';
 
 export interface ErrorBody {
-  error: { code: string; message: string };
+  error: { code: ApiErrorCode; message: string; details?: FieldIssue[] };
 }
 
 /**
@@ -19,17 +23,29 @@ interface ExposedClientError {
   type?: unknown;
 }
 
-const BODY_PARSER_ERRORS: Record<string, ErrorBody['error']> = {
-  'entity.parse.failed': { code: 'INVALID_JSON', message: 'Request body is not valid JSON' },
-  'entity.too.large': { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' },
-  'encoding.unsupported': {
-    code: 'UNSUPPORTED_ENCODING',
-    message: 'Request body encoding is not supported',
-  },
-  'charset.unsupported': {
-    code: 'UNSUPPORTED_CHARSET',
-    message: 'Request body charset is not supported',
-  },
+/** body-parser's errors (by their `type`), in the API's own codes. */
+const BODY_PARSER_ERRORS: Record<string, () => HttpError> = {
+  'entity.parse.failed': () => new HttpError(400, 'INVALID_JSON', 'Request body is not valid JSON'),
+  'entity.too.large': () => new HttpError(413, 'PAYLOAD_TOO_LARGE', 'Request body is too large'),
+  'encoding.unsupported': () =>
+    new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Request body encoding is not supported'),
+  'charset.unsupported': () =>
+    new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Request body charset is not supported'),
+  'request.aborted': () =>
+    validationError([{ field: 'body', message: 'was not received completely' }]),
+  'request.size.invalid': () =>
+    validationError([{ field: 'body', message: 'does not match its Content-Length' }]),
+};
+
+/** The API's code for the status of any other client error. */
+const CODE_BY_STATUS: Partial<Record<number, ApiErrorCode>> = {
+  401: 'UNAUTHORIZED',
+  403: 'FORBIDDEN',
+  404: 'NOT_FOUND',
+  409: 'CONFLICT',
+  413: 'PAYLOAD_TOO_LARGE',
+  415: 'UNSUPPORTED_MEDIA_TYPE',
+  429: 'TOO_MANY_REQUESTS',
 };
 
 /**
@@ -58,37 +74,40 @@ function isRouteParamDecodeError(error: unknown): boolean {
   return error instanceof URIError && (error as URIError & { status?: unknown }).status === 400;
 }
 
-/** 404 -> NOT_FOUND, 413 -> PAYLOAD_TOO_LARGE, ... */
-function codeForStatus(status: number): string {
-  return (STATUS_CODES[status] ?? 'Error').toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+function fromClientError(error: ExposedClientError): HttpError {
+  const known =
+    typeof error.type === 'string' && Object.hasOwn(BODY_PARSER_ERRORS, error.type)
+      ? BODY_PARSER_ERRORS[error.type]
+      : undefined;
+  if (known) return known();
+  const code = CODE_BY_STATUS[error.status];
+  if (code) return new HttpError(error.status, code, error.message);
+  // The list of codes has no other client errors (406, 411, ...): a bad request it is.
+  return validationError([{ field: 'request', message: error.message }], error.message);
+}
+
+/** The error as one of the API's documented errors, or undefined for an unexpected one. */
+function toHttpError(error: unknown): HttpError | undefined {
+  if (error instanceof HttpError) return error;
+  if (isExposedClientError(error)) return fromClientError(error);
+  if (isRouteParamDecodeError(error)) {
+    return validationError([{ field: 'path', message: 'contains invalid percent-encoding' }]);
+  }
+  return undefined;
 }
 
 /** Maps any thrown value to a status and a body that is safe to send to the client. */
 export function toErrorResponse(
   error: unknown,
   isProduction: boolean,
-): { status: number; body: ErrorBody } {
-  if (error instanceof HttpError) {
-    return { status: error.status, body: { error: { code: error.code, message: error.message } } };
-  }
-
-  if (isExposedClientError(error)) {
-    const known =
-      typeof error.type === 'string' && Object.hasOwn(BODY_PARSER_ERRORS, error.type)
-        ? BODY_PARSER_ERRORS[error.type]
-        : undefined;
+): { status: number; body: ErrorBody; headers?: Readonly<Record<string, string>> } {
+  const known = toHttpError(error);
+  if (known) {
+    const { status, code, message, details, headers } = known;
     return {
-      status: error.status,
-      body: { error: known ?? { code: codeForStatus(error.status), message: error.message } },
-    };
-  }
-
-  if (isRouteParamDecodeError(error)) {
-    return {
-      status: 400,
-      body: {
-        error: { code: 'INVALID_URL', message: 'Request path contains invalid percent-encoding' },
-      },
+      status,
+      body: { error: details ? { code, message, details } : { code, message } },
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
     };
   }
 
@@ -105,7 +124,7 @@ export function toErrorResponse(
   };
 }
 
-/** Central error handler: every error leaves the API as {"error":{"code","message"}}. */
+/** Central error handler: every error leaves the API as {"error":{"code","message","details"?}}. */
 export function createErrorHandler(options: { isProduction: boolean }): ErrorRequestHandler {
   return (error: unknown, _req, res, next) => {
     if (res.headersSent) {
@@ -113,11 +132,12 @@ export function createErrorHandler(options: { isProduction: boolean }): ErrorReq
       next(error);
       return;
     }
-    const { status, body } = toErrorResponse(error, options.isProduction);
+    const { status, body, headers } = toErrorResponse(error, options.isProduction);
     if (status >= 500) {
       // pino-http picks this up and logs it, with the stack, on the request's log line.
       res.err = error instanceof Error ? error : new Error(String(error));
     }
+    if (headers) res.set(headers);
     res.status(status).json(body);
   };
 }

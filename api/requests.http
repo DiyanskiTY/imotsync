@@ -1,0 +1,123 @@
+# ImotSync API: example requests, for Visual Studio 2022 (.http files) and VS Code's REST
+# Client extension. One request, "Upload two photos", works in REST Client only: Visual
+# Studio cannot put a file into a multipart body. Its comment shows how to upload with
+# curl.exe or Swagger UI instead; every other request works in both editors.
+#
+# Run them top to bottom: "login" stores the token that every later request sends,
+# "createProperty" the id of the new property, and "photos" the ids of its photos, which
+# the reorder and delete requests use.
+# The demo accounts come from the seed (npm run db:seed); the photo paths point to seeded
+# placeholder photos, change them to any JPEG, PNG, WebP or AVIF files you like.
+# Full reference: {{host}}/api/docs (Swagger UI).
+
+@host = http://localhost:3000
+@api = {{host}}/api
+
+### Health check (public)
+GET {{api}}/health
+
+### Log in as the demo admin (public; about 10 attempts per 15 minutes per IP)
+# @name login
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@imotsync.local",
+  "password": "demo1234"
+}
+
+### Current user
+GET {{api}}/auth/me
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### List properties: active or draft apartments in Sofia, most expensive first
+GET {{api}}/properties?status=active,draft&type=apartment&city=Sofia&sort=-price&page=1&pageSize=10
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Search (reference code, title, city, district) and portal state: "лозенец", URL-encoded
+GET {{api}}/properties?q=%D0%BB%D0%BE%D0%B7%D0%B5%D0%BD%D0%B5%D1%86&portal=bazar&portalStatus=published
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Property detail, with photos and portal listings
+GET {{api}}/properties/1
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Create a property (refCode is optional: without it the server assigns IS-<id>)
+# @name createProperty
+POST {{api}}/properties
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "type": "apartment",
+  "dealType": "sale",
+  "city": "Sofia",
+  "district": "Lozenets",
+  "title": "Двустаен апартамент с южно изложение",
+  "price": 189000,
+  "areaM2": 72.5,
+  "rooms": 2,
+  "floor": 3,
+  "totalFloors": 6,
+  "description": "Example property created from requests.http."
+}
+
+### Update it: change the price, clear the title (null clears a field)
+PATCH {{api}}/properties/{{createProperty.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "price": 184500,
+  "title": null,
+  "status": "active"
+}
+
+### Upload two photos (VS Code REST Client only; multipart field "photos", 1-20 files, 15 MB each)
+# In Visual Studio 2022, upload with Swagger UI ({{host}}/api/docs, "Try it out") or with
+# curl.exe from the api folder, filling in the accessToken from "login" and the id from
+# "createProperty":
+#   curl.exe -H "Authorization: Bearer <accessToken>" -F "photos=@uploads/demo/is-00001-1.jpg" -F "photos=@uploads/demo/is-00001-2.jpg" http://localhost:3000/api/properties/<id>/images
+POST {{api}}/properties/{{createProperty.response.body.$.id}}/images
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: multipart/form-data; boundary=ImotSyncBoundary
+
+--ImotSyncBoundary
+Content-Disposition: form-data; name="photos"; filename="living-room.jpg"
+Content-Type: image/jpeg
+
+< ./uploads/demo/is-00001-1.jpg
+--ImotSyncBoundary
+Content-Disposition: form-data; name="photos"; filename="kitchen.jpg"
+Content-Type: image/jpeg
+
+< ./uploads/demo/is-00001-2.jpg
+--ImotSyncBoundary--
+
+### The new property with its photos (after the upload; the next two requests use its photo ids)
+# @name photos
+GET {{api}}/properties/{{createProperty.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Reorder the photos: swap the two uploaded above (the list must name every photo once)
+PUT {{api}}/properties/{{createProperty.response.body.$.id}}/images/order
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "imageIds": [
+    {{photos.response.body.$.images[1].id}},
+    {{photos.response.body.$.images[0].id}}
+  ]
+}
+
+### Delete one photo
+DELETE {{api}}/properties/{{createProperty.response.body.$.id}}/images/{{photos.response.body.$.images[0].id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Delete the property (409 while it is published or pending on a portal)
+DELETE {{api}}/properties/{{createProperty.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### OpenAPI document (public)
+GET {{api}}/openapi.json

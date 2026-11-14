@@ -20,6 +20,8 @@ describe('parseConfig', () => {
       port: 3000,
       corsOrigins: ['http://localhost:4200'],
       jwtSecret: 'secret',
+      jwtTtlSeconds: 28_800,
+      trustProxy: false,
       uploadDir: path.resolve(API_ROOT, 'uploads'),
       db: { host: '127.0.0.1', port: 3307, database: 'imotsync', user: 'imotsync', password: 'pw' },
       seed: { demoPassword: 'demo1234', allowInProduction: false },
@@ -71,6 +73,12 @@ describe('parseConfig', () => {
     [{ CORS_ORIGIN: ' , ' }, 'CORS_ORIGIN'],
     [{ ALLOW_DEMO_SEED: 'maybe' }, 'ALLOW_DEMO_SEED'],
     [{ SEED_DEMO_PASSWORD: 'short' }, 'SEED_DEMO_PASSWORD'],
+    [{ JWT_TTL_SECONDS: '59' }, 'JWT_TTL_SECONDS'],
+    [{ JWT_TTL_SECONDS: '2592001' }, 'JWT_TTL_SECONDS'],
+    [{ JWT_TTL_SECONDS: '1.5' }, 'JWT_TTL_SECONDS'],
+    [{ TRUST_PROXY: 'yes' }, 'TRUST_PROXY'],
+    [{ TRUST_PROXY: '10.0.0.0/33' }, 'TRUST_PROXY'],
+    [{ TRUST_PROXY: 'loopback, not-an-ip' }, 'TRUST_PROXY'],
   ])('rejects invalid input %o', (override, variable) => {
     expect(() => makeConfig(override)).toThrow(ConfigError);
     expect(() => makeConfig(override)).toThrow(variable);
@@ -102,6 +110,34 @@ describe('parseConfig', () => {
   it('accepts the usual spellings of booleans for ALLOW_DEMO_SEED', () => {
     expect(makeConfig({ ALLOW_DEMO_SEED: '1' }).seed.allowInProduction).toBe(true);
     expect(makeConfig({ ALLOW_DEMO_SEED: 'false' }).seed.allowInProduction).toBe(false);
+  });
+
+  it('reads the token lifetime', () => {
+    expect(makeConfig({ JWT_TTL_SECONDS: '3600' }).jwtTtlSeconds).toBe(3600);
+  });
+
+  it.each([
+    ['false', false],
+    ['', false],
+    ['TRUE', true],
+    ['1', 1],
+    ['2', 2],
+    ['loopback', ['loopback']],
+    ['loopback, 10.0.0.0/8 ,fd00::/8', ['loopback', '10.0.0.0/8', 'fd00::/8']],
+    ['172.18.0.1', ['172.18.0.1']],
+  ])('reads TRUST_PROXY=%j for Express', (value, expected) => {
+    expect(makeConfig({ TRUST_PROXY: value }).trustProxy).toEqual(expected);
+  });
+
+  it('refuses TRUST_PROXY=true in production, where clients could forge their address', () => {
+    const production = { NODE_ENV: 'production', JWT_SECRET: 'z'.repeat(32) };
+
+    expect(() => makeConfig({ ...production, TRUST_PROXY: 'true' })).toThrow(
+      /must not be true when NODE_ENV=production; set the number of proxies[\s\S]*at TRUST_PROXY/,
+    );
+    expect(makeConfig({ ...production, TRUST_PROXY: '1' }).trustProxy).toBe(1);
+    expect(makeConfig({ ...production, TRUST_PROXY: 'loopback' }).trustProxy).toEqual(['loopback']);
+    expect(makeConfig({ TRUST_PROXY: 'true' }).trustProxy).toBe(true);
   });
 
   it('works with the minimal environment used by the other unit tests', () => {

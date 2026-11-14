@@ -1,4 +1,5 @@
-import { readdir, stat, mkdtemp, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, readdir, stat, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Knex } from 'knex';
@@ -11,6 +12,7 @@ import { DEMO_PROPERTIES } from '../../src/db/seeds/demo-data.js';
 import { DEMO_PHOTO_FOLDER, runDemoSeed } from '../../src/db/seeds/demo-seed.js';
 import { JOB_ACTIONS, JOB_STATUSES } from '../../src/db/types.js';
 import { verifyPassword } from '../../src/lib/password.js';
+import { UPLOADED_PHOTOS_FOLDER } from '../../src/modules/images/stored-files.js';
 import { loadTestConfig } from './test-db.js';
 
 const TABLES = ['users', 'properties', 'property_images', 'portal_listings', 'jobs'] as const;
@@ -162,6 +164,18 @@ describe('demo seed', () => {
       expect([metadata.width, metadata.height]).toEqual([image.width, image.height]);
       expect((await stat(file)).size).toBe(image.size_bytes);
     }
+  });
+
+  it('deletes photos uploaded through the API, whose rows it replaces', async () => {
+    // What an upload to property 11 leaves behind; after the seed, id 11 is a new property.
+    const uploaded = path.join(uploadDir, UPLOADED_PHOTOS_FOLDER, '11');
+    await mkdir(uploaded, { recursive: true });
+    await writeFile(path.join(uploaded, '9269aaa4-607a-4961-bc18-a5396413ca0f.jpg'), 'jpeg');
+
+    await seed();
+
+    expect(existsSync(path.join(uploadDir, UPLOADED_PHOTOS_FOLDER))).toBe(false);
+    expect((await readdir(path.join(uploadDir, DEMO_PHOTO_FOLDER))).length).toBeGreaterThan(20);
   });
 
   it('round-trips Cyrillic text and 4-byte characters', async () => {
