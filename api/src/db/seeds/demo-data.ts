@@ -88,29 +88,85 @@ export const DEMO_USERS: readonly DemoUser[] = [
 const ADMIN = 1;
 const BROKER = 2;
 
-/** A publish job that went through on the first attempt. */
-function published(createdAgo: number, externalId: string): DemoJob {
+/*
+ * The job history below uses the words the adapters use (src/portals/<key>/), so the job
+ * log of the demo reads like one the worker wrote. Feed portals (Realistimo, Bazar) assign
+ * no id of their own: they recognise a listing by its reference code. Only the demo portal
+ * returns an external id ("demo-" + the property id, six digits).
+ */
+
+/** The message a successful job leaves in jobs.result. */
+function successMessage(portal: Portal, action: JobAction, externalId?: string): string {
+  switch (portal) {
+    case 'realistimo':
+      return {
+        publish: 'Added to the Realistimo feed (next import picks it up)',
+        update: 'Updated in the Realistimo feed (next import picks it up)',
+        remove: 'Removed from the Realistimo feed (next import takes the offer down)',
+      }[action];
+    case 'bazar':
+      return {
+        publish: 'Added to the Bazar feed (Bazar picks it up on its next scheduled download)',
+        update: 'Updated in the Bazar feed (Bazar applies it on its next scheduled download)',
+        remove:
+          'Marked out of stock in the Bazar feed (Bazar archives the listing on its next scheduled download)',
+      }[action];
+    case 'demo': {
+      const id = externalId ?? 'the listing';
+      return {
+        publish: `Published on the demo portal as ${id} (simulated)`,
+        update: `Updated ${id} on the demo portal (simulated)`,
+        remove: `Removed ${id} from the demo portal (simulated)`,
+      }[action];
+    }
+  }
+}
+
+/** A job that succeeded; `attempts` > 1 when earlier attempts failed and were retried. */
+function succeeded(
+  portal: Portal,
+  action: JobAction,
+  createdAgo: number,
+  options: { externalId?: string; attempts?: number; tookMinutes?: number } = {},
+): DemoJob {
+  const { externalId, attempts = 1, tookMinutes = 2 } = options;
   return {
-    action: 'publish',
+    action,
     status: 'succeeded',
-    attempts: 1,
+    attempts,
     createdAgo,
-    finishedAgo: createdAgo - 2,
-    result: { externalId, message: 'Accepted by the portal import' },
+    finishedAgo: createdAgo - tookMinutes,
+    result: {
+      message: successMessage(portal, action, externalId),
+      ...(externalId === undefined ? {} : { externalId }),
+    },
   };
 }
 
-/** A listing that is live on a portal, with the job that published it. */
-function live(portal: Portal, createdAgo: number, externalId: string): DemoListing {
+/**
+ * A listing that is live on a portal, with the job that published it. `externalId` only
+ * for the demo portal.
+ */
+function live(portal: Portal, createdAgo: number, externalId?: string): DemoListing {
   return {
     portal,
     status: 'published',
     createdAgo,
-    externalId,
+    ...(externalId === undefined ? {} : { externalId }),
     publishedAgo: createdAgo - 2,
-    jobs: [published(createdAgo, externalId)],
+    jobs: [succeeded(portal, 'publish', createdAgo, { externalId })],
   };
 }
+
+/** What the demo portal answers when it is "down" (src/portals/demo/demo-adapter.ts). */
+const DEMO_OUTAGE = 'The demo portal answered HTTP 503 Service Unavailable (simulated outage)';
+const DEMO_RATE_LIMITED =
+  'The demo portal answered HTTP 429 Too Many Requests (simulated); it asks to retry after 5 s';
+const DEMO_REJECTED =
+  'The demo portal rejected the listing: the listing text failed its automatic content check (HTTP 422, simulated)';
+/** What the worker records when validate() fails (src/jobs/failure.ts, Bazar's rules). */
+const BAZAR_CONTACT_REJECTED =
+  'Validation failed: description: Bazar does not allow e-mail addresses in the description (found "office@agency.example").';
 
 export const DEMO_PROPERTIES: readonly DemoProperty[] = [
   {
@@ -135,31 +191,22 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
     photoCount: 4,
     listings: [
       {
-        ...live('realistimo', 24 * DAY, 'rlst-100231'),
+        ...live('realistimo', 24 * DAY),
         jobs: [
-          published(24 * DAY, 'rlst-100231'),
-          {
-            action: 'update',
-            status: 'succeeded',
-            attempts: 1,
-            createdAgo: 3 * DAY,
-            finishedAgo: 3 * DAY - 1,
-            result: { externalId: 'rlst-100231', message: 'Price updated to 245000 EUR' },
-          },
+          succeeded('realistimo', 'publish', 24 * DAY),
+          succeeded('realistimo', 'update', 3 * DAY, { tookMinutes: 1 }),
         ],
       },
-      live('bazar', 24 * DAY, 'bzr-7300112'),
+      live('bazar', 24 * DAY),
       {
         ...live('demo', 24 * DAY, 'demo-000001'),
+        // Published on the second attempt, after a simulated outage.
         jobs: [
-          {
-            action: 'publish',
-            status: 'succeeded',
+          succeeded('demo', 'publish', 24 * DAY, {
+            externalId: 'demo-000001',
             attempts: 2,
-            createdAgo: 24 * DAY,
-            finishedAgo: 24 * DAY - 3,
-            result: { externalId: 'demo-000001', message: 'Published on the second attempt' },
-          },
+            tookMinutes: 3,
+          }),
         ],
       },
     ],
@@ -184,7 +231,7 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
     createdAgo: 22 * DAY,
     photoCount: 3,
     listings: [
-      live('realistimo', 21 * DAY, 'rlst-100244'),
+      live('realistimo', 21 * DAY),
       {
         portal: 'bazar',
         status: 'pending',
@@ -195,8 +242,7 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
         portal: 'demo',
         status: 'error',
         createdAgo: 21 * DAY,
-        lastError:
-          'Publishing failed after 5 attempts: the demo portal answered HTTP 503 Service Unavailable.',
+        lastError: `Gave up after 5 attempts: ${DEMO_OUTAGE}`,
         jobs: [
           {
             action: 'publish',
@@ -204,8 +250,13 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
             attempts: 5,
             createdAgo: 21 * DAY,
             finishedAgo: 21 * DAY - 2 * HOUR,
-            result: { httpStatus: 503, retryable: true },
-            lastError: 'HTTP 503 Service Unavailable (simulated by the demo portal)',
+            result: {
+              error: DEMO_OUTAGE,
+              retryable: true,
+              httpStatus: 503,
+              code: 'DEMO_UNAVAILABLE',
+            },
+            lastError: DEMO_OUTAGE,
           },
         ],
       },
@@ -232,8 +283,8 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
     createdAgo: 21 * DAY,
     photoCount: 3,
     listings: [
-      live('realistimo', 20 * DAY, 'rlst-100250'),
-      live('bazar', 20 * DAY, 'bzr-7300187'),
+      live('realistimo', 20 * DAY),
+      live('bazar', 20 * DAY),
       {
         portal: 'demo',
         status: 'pending',
@@ -252,7 +303,8 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
     ],
   },
   {
-    // IS-00004: Realistimo job is waiting for its third attempt (retry back-off).
+    // IS-00004: live on Realistimo; the demo portal publish job failed four times with
+    // temporary errors and waits for its fifth and last attempt (retry back-off).
     title: 'Двуетажна къща с двор в Остромила',
     type: 'house',
     dealType: 'sale',
@@ -271,23 +323,29 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
     createdAgo: 18 * DAY,
     photoCount: 5,
     listings: [
+      live('realistimo', 17 * DAY),
       {
-        portal: 'realistimo',
+        portal: 'demo',
         status: 'pending',
-        createdAgo: 25,
+        createdAgo: 6,
         jobs: [
           {
             action: 'publish',
             status: 'queued',
-            attempts: 2,
-            createdAgo: 25,
-            runAfterIn: 4,
-            result: { retryable: true },
-            lastError: 'Request timed out after 30 s (attempt 2 of 5)',
+            attempts: 4,
+            createdAgo: 6,
+            runAfterIn: 3,
+            result: {
+              error: DEMO_RATE_LIMITED,
+              retryable: true,
+              httpStatus: 429,
+              code: 'DEMO_RATE_LIMITED',
+              retryInSeconds: 200,
+            },
+            lastError: DEMO_RATE_LIMITED,
           },
         ],
       },
-      live('demo', 17 * DAY, 'demo-000004'),
     ],
   },
   {
@@ -310,13 +368,12 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
     createdAgo: 16 * DAY,
     photoCount: 3,
     listings: [
-      live('bazar', 15 * DAY, 'bzr-7300254'),
+      live('bazar', 15 * DAY),
       {
         portal: 'demo',
         status: 'error',
         createdAgo: 15 * DAY,
-        lastError:
-          'The demo portal rejected the listing (HTTP 422): description must be at least 300 characters.',
+        lastError: DEMO_REJECTED,
         jobs: [
           {
             action: 'publish',
@@ -324,8 +381,13 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
             attempts: 1,
             createdAgo: 15 * DAY,
             finishedAgo: 15 * DAY - 1,
-            result: { httpStatus: 422, retryable: false },
-            lastError: 'HTTP 422: description must be at least 300 characters',
+            result: {
+              error: DEMO_REJECTED,
+              retryable: false,
+              httpStatus: 422,
+              code: 'DEMO_REJECTED',
+            },
+            lastError: DEMO_REJECTED,
           },
         ],
       },
@@ -354,7 +416,9 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
     ],
   },
   {
-    // IS-00007: Bazar failed for good after 5 network errors.
+    // IS-00007: the Bazar publish job failed for good: when it ran, the description gave an
+    // e-mail address, which Bazar's terms forbid (never retried). The text has been fixed
+    // since; publishing again would go through.
     title: 'Тристаен апартамент в Чайка с морска панорама',
     type: 'apartment',
     dealType: 'sale',
@@ -373,21 +437,21 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
     createdAgo: 14 * DAY,
     photoCount: 4,
     listings: [
-      live('realistimo', 13 * DAY, 'rlst-100302'),
+      live('realistimo', 13 * DAY),
       {
         portal: 'bazar',
         status: 'error',
         createdAgo: 13 * DAY,
-        lastError: 'Publishing failed after 5 attempts: connection reset by peer (ECONNRESET).',
+        lastError: BAZAR_CONTACT_REJECTED,
         jobs: [
           {
             action: 'publish',
             status: 'failed',
-            attempts: 5,
+            attempts: 1,
             createdAgo: 13 * DAY,
-            finishedAgo: 13 * DAY - 3 * HOUR,
-            result: { retryable: true },
-            lastError: 'read ECONNRESET',
+            finishedAgo: 13 * DAY - 1,
+            result: { error: BAZAR_CONTACT_REJECTED, retryable: false, code: 'VALIDATION' },
+            lastError: BAZAR_CONTACT_REJECTED,
           },
         ],
       },
@@ -417,18 +481,10 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
       portal,
       status: 'removed',
       createdAgo: 69 * DAY,
-      externalId: portal === 'realistimo' ? 'rlst-099812' : 'bzr-7299540',
       publishedAgo: 69 * DAY - 2,
       jobs: [
-        published(69 * DAY, portal === 'realistimo' ? 'rlst-099812' : 'bzr-7299540'),
-        {
-          action: 'remove',
-          status: 'succeeded',
-          attempts: 1,
-          createdAgo: 5 * DAY,
-          finishedAgo: 5 * DAY - 1,
-          result: { message: 'Removed from the import feed' },
-        },
+        succeeded(portal, 'publish', 69 * DAY),
+        succeeded(portal, 'remove', 5 * DAY, { tookMinutes: 1 }),
       ],
     })),
   },
@@ -473,8 +529,8 @@ export const DEMO_PROPERTIES: readonly DemoProperty[] = [
     createdAgo: 10 * DAY,
     photoCount: 3,
     listings: [
-      live('realistimo', 9 * DAY, 'rlst-100355'),
-      live('bazar', 9 * DAY, 'bzr-7300391'),
+      live('realistimo', 9 * DAY),
+      live('bazar', 9 * DAY),
       {
         portal: 'demo',
         status: 'pending',

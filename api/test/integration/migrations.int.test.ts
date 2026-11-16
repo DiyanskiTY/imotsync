@@ -4,7 +4,17 @@ import { createDb } from '../../src/db/knex.js';
 import { MIGRATION_NAMES, migratorConfig } from '../../src/db/migrations/index.js';
 import { loadTestConfig } from './test-db.js';
 
-const APP_TABLES = ['jobs', 'portal_listings', 'properties', 'property_images', 'users'];
+const APP_TABLES = [
+  'jobs',
+  'portal_listings',
+  'portal_sync_state',
+  'properties',
+  'property_images',
+  'users',
+];
+
+/** MariaDB's JSON type is LONGTEXT with a binary collation. */
+const JSON_COLUMNS = ['jobs.result', 'portal_listings.payload', 'portal_sync_state.last_result'];
 
 interface ColumnInfo {
   tableName: string;
@@ -135,7 +145,7 @@ describe('migrations', () => {
     expect(pending).toEqual([]);
   });
 
-  it('creates the five tables as InnoDB with utf8mb4_unicode_ci', async () => {
+  it('creates the six tables as InnoDB with utf8mb4_unicode_ci', async () => {
     expect(await appTables()).toEqual(
       APP_TABLES.map((name) => ({ name, engine: 'InnoDB', collation: 'utf8mb4_unicode_ci' })),
     );
@@ -150,8 +160,7 @@ describe('migrations', () => {
     for (const column of textColumns) {
       const label = `${column.tableName}.${column.name}`;
       expect(column.charset, label).toBe('utf8mb4');
-      // MariaDB's JSON type is LONGTEXT with a binary collation.
-      const expected = label === 'jobs.result' ? 'utf8mb4_bin' : 'utf8mb4_unicode_ci';
+      const expected = JSON_COLUMNS.includes(label) ? 'utf8mb4_bin' : 'utf8mb4_unicode_ci';
       expect(column.collation, label).toBe(expected);
     }
   });
@@ -239,6 +248,59 @@ describe('migrations', () => {
     expect(col('jobs.result').type).toMatch(/^(json|longtext)$/);
   });
 
+  it('adds the publishing columns (0006) and the portal sync state (0007)', async () => {
+    const cols = await columns();
+    const col = (key: string) => {
+      const column = cols.get(key);
+      if (!column) throw new Error(`Column ${key} is missing`);
+      return column;
+    };
+
+    expect(col('portal_listings.payload').nullable).toBe('YES');
+    expect(col('portal_listings.payload').type).toMatch(/^(json|longtext)$/);
+    expect(col('portal_listings.payload_updated_at')).toMatchObject({
+      type: 'datetime',
+      nullable: 'YES',
+    });
+    expect(col('portal_listings.removed_at')).toMatchObject({ type: 'datetime', nullable: 'YES' });
+    expect(col('properties.delete_requested_at')).toMatchObject({
+      type: 'datetime',
+      nullable: 'YES',
+    });
+
+    expect(col('portal_sync_state.portal')).toMatchObject({ type: 'varchar(32)', nullable: 'NO' });
+    expect(col('portal_sync_state.last_triggered_at')).toMatchObject({
+      type: 'datetime',
+      nullable: 'YES',
+    });
+    expect(col('portal_sync_state.last_trigger_message')).toMatchObject({
+      type: 'varchar(100)',
+      nullable: 'YES',
+    });
+    expect(col('portal_sync_state.last_log_date')).toMatchObject({
+      type: 'datetime',
+      nullable: 'YES',
+    });
+    expect(col('portal_sync_state.last_result').type).toMatch(/^(json|longtext)$/);
+    expect(col('portal_sync_state.feed_changed_at')).toMatchObject({
+      type: 'datetime',
+      nullable: 'YES',
+    });
+    expect(col('portal_sync_state.created_at').defaultValue).toMatch(/^current_timestamp(\(\))?$/i);
+    expect(col('portal_sync_state.updated_at').extra).toMatch(/on update current_timestamp/i);
+
+    const primary = await db('information_schema.statistics')
+      .where({ table_schema: schema, table_name: 'portal_sync_state', index_name: 'PRIMARY' })
+      .pluck('column_name');
+    expect(primary).toEqual(['portal']);
+  });
+
+  it('rejects anything but JSON in the JSON columns', async () => {
+    await expect(
+      db('portal_sync_state').insert({ portal: 'x', last_result: 'not json' }),
+    ).rejects.toThrow(/CONSTRAINT|check/i);
+  });
+
   it('creates the unique keys', async () => {
     expect((await indexes(true)).sort()).toEqual([
       'portal_listings(property_id,portal)',
@@ -268,6 +330,38 @@ describe('migrations', () => {
       'portal_listings.property_id -> properties.id ON DELETE CASCADE',
       'properties.created_by -> users.id ON DELETE SET NULL',
       'property_images.property_id -> properties.id ON DELETE CASCADE',
+    ]);
+  });
+
+  it('rolls back 0008, 0007 and 0006 one at a time, leaving the earlier schema intact', async () => {
+    const [, latest] = (await db.migrate.down(migratorConfig)) as [number, string[]];
+    expect(latest).toEqual(['0008_add_feed_changed_at']);
+    const syncColumns = await columns();
+    expect(syncColumns.has('portal_sync_state.feed_changed_at')).toBe(false);
+    expect(syncColumns.has('portal_sync_state.last_result')).toBe(true);
+
+    const [, first] = (await db.migrate.down(migratorConfig)) as [number, string[]];
+    expect(first).toEqual(['0007_create_portal_sync_state']);
+    expect((await appTables()).map((table) => table.name)).not.toContain('portal_sync_state');
+
+    const [, second] = (await db.migrate.down(migratorConfig)) as [number, string[]];
+    expect(second).toEqual(['0006_add_publishing_columns']);
+    const cols = await columns();
+    for (const key of [
+      'portal_listings.payload',
+      'portal_listings.payload_updated_at',
+      'portal_listings.removed_at',
+      'properties.delete_requested_at',
+    ]) {
+      expect(cols.has(key), key).toBe(false);
+    }
+    expect(cols.has('portal_listings.published_at')).toBe(true);
+
+    const [, applied] = (await db.migrate.latest(migratorConfig)) as [number, string[]];
+    expect(applied).toEqual([
+      '0006_add_publishing_columns',
+      '0007_create_portal_sync_state',
+      '0008_add_feed_changed_at',
     ]);
   });
 

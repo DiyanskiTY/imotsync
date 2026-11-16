@@ -14,6 +14,9 @@ coverage/
 # Uploaded / generated photos
 api/uploads/
 
+# Downloaded reference data (e.g. Realistimo's full geo CSV: npm run geo:realistimo)
+api/data/
+
 # Logs
 *.log
 npm-debug.log*

@@ -8,5 +8,7 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     exclude: [...configDefaults.exclude, 'test/**/*.int.test.ts'],
     env: { NODE_ENV: 'test' },
+    // No test may reach a host other than this machine (a real portal above all).
+    setupFiles: ['test/support/network-guard.ts'],
   },
 });

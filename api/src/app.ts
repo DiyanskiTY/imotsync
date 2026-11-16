@@ -17,12 +17,19 @@ import {
 } from './modules/auth/login-rate-limit.js';
 import { createRequireAuth } from './modules/auth/require-auth.js';
 import { createTokenService } from './modules/auth/tokens.js';
+import { createFeedsRouter, FEEDS_PATH } from './modules/feeds/feeds.router.js';
+import { createFeedsService } from './modules/feeds/feeds.service.js';
 import { createImagesRouter } from './modules/images/images.router.js';
 import { createImagesService } from './modules/images/images.service.js';
+import { createJobsRouter } from './modules/jobs/jobs.router.js';
+import { createJobsService } from './modules/jobs/jobs.service.js';
 import { createPropertiesRouter } from './modules/properties/properties.router.js';
 import { createPropertiesService } from './modules/properties/properties.service.js';
+import { createPublishingRouter } from './modules/publishing/publishing.router.js';
+import { createPublishingService } from './modules/publishing/publishing.service.js';
 import { createDocsHandlers, createOpenApiRouter } from './openapi/docs.js';
 import { buildOpenApiDocument, DOCS_PATH } from './openapi/document.js';
+import { createPortalRegistry, type PortalRegistry } from './portals/registry.js';
 import { createHealthRouter } from './routes/health.js';
 
 export interface AppDeps {
@@ -39,6 +46,8 @@ export interface AppDeps {
   maxConcurrentUploads?: number;
   /** Milliseconds a photo upload's body has to arrive in (default 60 s); later, 408. */
   uploadBodyTimeoutMs?: number;
+  /** Portal adapters (default: createPortalRegistry(config)). */
+  registry?: PortalRegistry;
 }
 
 /** Response headers browser clients on other origins (the admin panel) may read. */
@@ -55,6 +64,7 @@ export interface ApiRouterDeps {
   db: Knex;
   logger: Logger;
   storage: FileStorage;
+  registry: PortalRegistry;
   healthCheckTimeoutMs: number;
   loginRateLimit?: LoginRateLimitOptions;
   maxConcurrentUploads?: number;
@@ -67,7 +77,7 @@ export interface ApiRouterDeps {
  * protected by default (an unknown /api path also answers 401 until a token is sent).
  */
 export function createApiRouter(deps: ApiRouterDeps): Router {
-  const { config, db, logger, storage } = deps;
+  const { config, db, logger, storage, registry } = deps;
 
   const tokens = createTokenService({ secret: config.jwtSecret, ttlSeconds: config.jwtTtlSeconds });
   const users = createUserRepository(db);
@@ -85,7 +95,14 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
   );
 
   api.use(requireAuth);
-  api.use(createPropertiesRouter({ properties: createPropertiesService({ db, storage, logger }) }));
+  api.use(
+    createPropertiesRouter({
+      properties: createPropertiesService({
+        db,
+        removedRetentionDays: registry.removedRetentionDays,
+      }),
+    }),
+  );
   api.use(
     createImagesRouter({
       images: createImagesService({ db, storage, logger }),
@@ -93,6 +110,13 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
       uploadBodyTimeoutMs: deps.uploadBodyTimeoutMs,
     }),
   );
+  api.use(
+    createPublishingRouter({
+      publishing: createPublishingService({ db, registry, logger, config }),
+      portalKeys: registry.keys(),
+    }),
+  );
+  api.use(createJobsRouter({ jobs: createJobsService({ db, registry }) }));
   return api;
 }
 
@@ -103,6 +127,7 @@ export function createApiRouter(deps: ApiRouterDeps): Router {
 export function createApp(deps: AppDeps): Express {
   const { config, logger } = deps;
   const storage = deps.storage ?? new LocalFileStorage(config.uploadDir);
+  const registry = deps.registry ?? createPortalRegistry(config);
   const healthCheckTimeoutMs = deps.healthCheckTimeoutMs ?? 2000;
 
   const app = express();
@@ -120,7 +145,21 @@ export function createApp(deps: AppDeps): Express {
 
   // Swagger UI (public, static files only), with its own CSP adjustment.
   app.use(DOCS_PATH, ...createDocsHandlers());
-  app.use('/api', createApiRouter({ ...deps, storage, healthCheckTimeoutMs }));
+  app.use('/api', createApiRouter({ ...deps, storage, registry, healthCheckTimeoutMs }));
+
+  // The feeds of the feed portals: public (portals send no credentials), outside /api,
+  // protected by FEED_TOKEN in the path.
+  app.use(
+    FEEDS_PATH,
+    createFeedsRouter({
+      feeds: createFeedsService({
+        db: deps.db,
+        registry,
+        publicBaseUrl: config.publicBaseUrl,
+        feedToken: config.feeds.token,
+      }),
+    }),
+  );
 
   // Property photos. No directory listing, no index.html, no redirect for folder paths.
   // The photos are public by design (portals download them by URL), and the admin panel

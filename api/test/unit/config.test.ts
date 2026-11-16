@@ -25,14 +25,36 @@ describe('parseConfig', () => {
       uploadDir: path.resolve(API_ROOT, 'uploads'),
       db: { host: '127.0.0.1', port: 3307, database: 'imotsync', user: 'imotsync', password: 'pw' },
       seed: { demoPassword: 'demo1234', allowInProduction: false },
+      publicBaseUrl: 'http://localhost:3000',
+      feeds: { token: 'dev-only-feed-token' },
+      worker: {
+        concurrency: 2,
+        pollIntervalMs: 1000,
+        jobTimeoutSeconds: 60,
+        lockTimeoutSeconds: 300,
+      },
+      retry: { baseSeconds: 30, capSeconds: 3600 },
+      portals: {
+        publicListingUrlTemplate: null,
+        demo: { failureRate: 0.3, latencyMs: 400 },
+        realistimo: {
+          agencyUid: 'imotsync-demo',
+          apiKey: null,
+          apiBaseUrl: 'https://realistimo.com',
+          syncIntervalSeconds: 900,
+        },
+        bazar: { removedRetentionDays: 30 },
+      },
     });
   });
 
   it('reads and converts the environment variables', () => {
     const config = makeConfig({
       NODE_ENV: 'production',
+      PUBLIC_BASE_URL: 'https://imotsync.example',
       API_PORT: '8080',
       JWT_SECRET: 'x'.repeat(32),
+      FEED_TOKEN: 'f'.repeat(32),
       DB_HOST: 'db',
       DB_PORT: '3306',
       DB_NAME: 'imotsync_demo',
@@ -91,9 +113,14 @@ describe('parseConfig', () => {
       'dev-only-change-me',
     );
     expect(() => makeConfig({ ...shortSecret, NODE_ENV: 'production' })).toThrow(/at least 32/);
-    expect(makeConfig({ NODE_ENV: 'production', JWT_SECRET: 'y'.repeat(32) }).isProduction).toBe(
-      true,
-    );
+    expect(
+      makeConfig({
+        NODE_ENV: 'production',
+        JWT_SECRET: 'y'.repeat(32),
+        FEED_TOKEN: 'f'.repeat(32),
+        PUBLIC_BASE_URL: 'https://imotsync.example',
+      }).isProduction,
+    ).toBe(true);
   });
 
   it('rejects the public dev-only placeholder secret in production only', () => {
@@ -130,7 +157,12 @@ describe('parseConfig', () => {
   });
 
   it('refuses TRUST_PROXY=true in production, where clients could forge their address', () => {
-    const production = { NODE_ENV: 'production', JWT_SECRET: 'z'.repeat(32) };
+    const production = {
+      NODE_ENV: 'production',
+      JWT_SECRET: 'z'.repeat(32),
+      FEED_TOKEN: 'f'.repeat(32),
+      PUBLIC_BASE_URL: 'https://imotsync.example',
+    };
 
     expect(() => makeConfig({ ...production, TRUST_PROXY: 'true' })).toThrow(
       /must not be true when NODE_ENV=production; set the number of proxies[\s\S]*at TRUST_PROXY/,
@@ -138,6 +170,194 @@ describe('parseConfig', () => {
     expect(makeConfig({ ...production, TRUST_PROXY: '1' }).trustProxy).toBe(1);
     expect(makeConfig({ ...production, TRUST_PROXY: 'loopback' }).trustProxy).toEqual(['loopback']);
     expect(makeConfig({ TRUST_PROXY: 'true' }).trustProxy).toBe(true);
+  });
+
+  it('reads the publishing settings', () => {
+    const config = makeConfig({
+      PUBLIC_BASE_URL: 'https://imotsync.example',
+      FEED_TOKEN: 'a-feed-token_123',
+      WORKER_CONCURRENCY: '4',
+      WORKER_POLL_INTERVAL_MS: '250',
+      JOB_TIMEOUT_SECONDS: '30',
+      JOB_LOCK_TIMEOUT_SECONDS: '120',
+      RETRY_BASE_SECONDS: '5',
+      RETRY_CAP_SECONDS: '600',
+      DEMO_PORTAL_FAILURE_RATE: '0',
+      DEMO_PORTAL_LATENCY_MS: '0',
+      REALISTIMO_AGENCY_UID: ' my-agency ',
+      REALISTIMO_API_KEY: ' key-123 ',
+      REALISTIMO_API_BASE_URL: 'http://127.0.0.1:4010',
+      REALISTIMO_SYNC_INTERVAL_SECONDS: '300',
+      BAZAR_REMOVED_RETENTION_DAYS: '7',
+      PUBLIC_LISTING_URL_TEMPLATE: 'https://agency.example/properties/{refCode}',
+    });
+
+    expect(config.publicBaseUrl).toBe('https://imotsync.example');
+    expect(config.feeds).toEqual({ token: 'a-feed-token_123' });
+    expect(config.worker).toEqual({
+      concurrency: 4,
+      pollIntervalMs: 250,
+      jobTimeoutSeconds: 30,
+      lockTimeoutSeconds: 120,
+    });
+    expect(config.retry).toEqual({ baseSeconds: 5, capSeconds: 600 });
+    expect(config.portals).toEqual({
+      publicListingUrlTemplate: 'https://agency.example/properties/{refCode}',
+      demo: { failureRate: 0, latencyMs: 0 },
+      realistimo: {
+        agencyUid: 'my-agency',
+        apiKey: 'key-123',
+        apiBaseUrl: 'http://127.0.0.1:4010',
+        syncIntervalSeconds: 300,
+      },
+      bazar: { removedRetentionDays: 7 },
+    });
+  });
+
+  it.each([
+    [{ PUBLIC_BASE_URL: 'https://imotsync.example/' }, 'PUBLIC_BASE_URL'],
+    [{ PUBLIC_BASE_URL: 'imotsync.example' }, 'PUBLIC_BASE_URL'],
+    [{ FEED_TOKEN: 'short' }, 'FEED_TOKEN'],
+    [{ FEED_TOKEN: 'has a space in it' }, 'FEED_TOKEN'],
+    [{ FEED_TOKEN: 'slash/in/the/token' }, 'FEED_TOKEN'],
+    [{ WORKER_CONCURRENCY: '0' }, 'WORKER_CONCURRENCY'],
+    [{ WORKER_CONCURRENCY: '17' }, 'WORKER_CONCURRENCY'],
+    [{ WORKER_POLL_INTERVAL_MS: '99' }, 'WORKER_POLL_INTERVAL_MS'],
+    [{ WORKER_POLL_INTERVAL_MS: '60001' }, 'WORKER_POLL_INTERVAL_MS'],
+    [{ JOB_TIMEOUT_SECONDS: '0' }, 'JOB_TIMEOUT_SECONDS'],
+    [{ JOB_TIMEOUT_SECONDS: '60', JOB_LOCK_TIMEOUT_SECONDS: '60' }, 'JOB_LOCK_TIMEOUT_SECONDS'],
+    [{ JOB_TIMEOUT_SECONDS: '60', JOB_LOCK_TIMEOUT_SECONDS: '119' }, 'JOB_LOCK_TIMEOUT_SECONDS'],
+    [{ RETRY_BASE_SECONDS: '60', RETRY_CAP_SECONDS: '30' }, 'RETRY_CAP_SECONDS'],
+    [{ DEMO_PORTAL_FAILURE_RATE: '1.5' }, 'DEMO_PORTAL_FAILURE_RATE'],
+    [{ DEMO_PORTAL_FAILURE_RATE: '-0.1' }, 'DEMO_PORTAL_FAILURE_RATE'],
+    [{ DEMO_PORTAL_LATENCY_MS: 'slow' }, 'DEMO_PORTAL_LATENCY_MS'],
+    [{ REALISTIMO_AGENCY_UID: '  ' }, 'REALISTIMO_AGENCY_UID'],
+    [{ REALISTIMO_API_BASE_URL: 'https://realistimo.com/api' }, 'REALISTIMO_API_BASE_URL'],
+    [{ REALISTIMO_SYNC_INTERVAL_SECONDS: '10' }, 'REALISTIMO_SYNC_INTERVAL_SECONDS'],
+    [{ BAZAR_REMOVED_RETENTION_DAYS: '0' }, 'BAZAR_REMOVED_RETENTION_DAYS'],
+    [{ PUBLIC_LISTING_URL_TEMPLATE: 'https://agency.example/p/1' }, 'PUBLIC_LISTING_URL_TEMPLATE'],
+    [{ PUBLIC_LISTING_URL_TEMPLATE: 'agency.example/{refCode}' }, 'PUBLIC_LISTING_URL_TEMPLATE'],
+  ])('rejects invalid publishing setting %o', (override, variable) => {
+    expect(() => makeConfig(override)).toThrow(ConfigError);
+    expect(() => makeConfig(override)).toThrow(variable);
+  });
+
+  it('requires a real FEED_TOKEN in production only, like JWT_SECRET', () => {
+    const production = {
+      NODE_ENV: 'production',
+      JWT_SECRET: 'z'.repeat(32),
+      PUBLIC_BASE_URL: 'https://imotsync.example',
+    };
+
+    expect(() => makeConfig(production)).toThrow(/FEED_TOKEN/);
+    expect(() => makeConfig({ ...production, FEED_TOKEN: 'short-token-123' })).toThrow(
+      /at least 32 characters when NODE_ENV=production[\s\S]*at FEED_TOKEN/,
+    );
+    expect(() => makeConfig({ ...production, FEED_TOKEN: `dev-only-${'x'.repeat(32)}` })).toThrow(
+      /public 'dev-only\.\.\.' placeholder[\s\S]*at FEED_TOKEN/,
+    );
+    expect(makeConfig({ ...production, FEED_TOKEN: 'f'.repeat(32) }).feeds.token).toBe(
+      'f'.repeat(32),
+    );
+    expect(makeConfig({ FEED_TOKEN: 'dev-only-feed-token' }).feeds.token).toBe(
+      'dev-only-feed-token',
+    );
+  });
+
+  it('leaves JOB_LOCK_TIMEOUT_SECONDS at least 60 s above JOB_TIMEOUT_SECONDS', () => {
+    expect(() =>
+      makeConfig({ JOB_TIMEOUT_SECONDS: '60', JOB_LOCK_TIMEOUT_SECONDS: '119' }),
+    ).toThrow(
+      /must be at least JOB_TIMEOUT_SECONDS \+ 60 \(120\)[\s\S]*at JOB_LOCK_TIMEOUT_SECONDS/,
+    );
+    expect(
+      makeConfig({ JOB_TIMEOUT_SECONDS: '60', JOB_LOCK_TIMEOUT_SECONDS: '120' }).worker
+        .lockTimeoutSeconds,
+    ).toBe(120);
+  });
+
+  it('requires a public https PUBLIC_BASE_URL in production, unless explicitly allowed', () => {
+    const production = {
+      NODE_ENV: 'production',
+      JWT_SECRET: 'z'.repeat(32),
+      FEED_TOKEN: 'f'.repeat(32),
+    };
+
+    for (const url of [
+      'http://imotsync.example',
+      'https://localhost:3000',
+      'https://127.0.0.1',
+      'https://[::1]:8443',
+      'https://app.localhost',
+    ]) {
+      expect(() => makeConfig({ ...production, PUBLIC_BASE_URL: url }), url).toThrow(
+        /public https:\/\/ origin[\s\S]*at PUBLIC_BASE_URL/,
+      );
+    }
+    // The default (http://localhost:3000) too.
+    expect(() => makeConfig(production)).toThrow(/at PUBLIC_BASE_URL/);
+    expect(
+      makeConfig({ ...production, PUBLIC_BASE_URL: 'https://imotsync.example' }).publicBaseUrl,
+    ).toBe('https://imotsync.example');
+    // A local run of the production build (Docker Compose, CI) opts out explicitly.
+    expect(
+      makeConfig({ ...production, ALLOW_INSECURE_PUBLIC_BASE_URL: 'true' }).publicBaseUrl,
+    ).toBe('http://localhost:3000');
+    // Outside production any origin is fine.
+    expect(makeConfig({ PUBLIC_BASE_URL: 'http://localhost:3000' }).publicBaseUrl).toBe(
+      'http://localhost:3000',
+    );
+  });
+
+  it('lets the worker start without JWT_SECRET and FEED_TOKEN, which it never uses', () => {
+    const { JWT_SECRET: _unused, ...withoutSecret } = MINIMAL_ENV;
+    const production = {
+      ...withoutSecret,
+      NODE_ENV: 'production',
+      PUBLIC_BASE_URL: 'https://imotsync.example',
+    };
+
+    // The API needs both.
+    expect(() => parseConfig(production)).toThrow(/JWT_SECRET/);
+    const worker = parseConfig(production, 'worker');
+    expect(worker.isProduction).toBe(true);
+    // Random values that nobody knows, not the API's secrets, even when they are set.
+    const withSecrets = parseConfig(
+      { ...production, JWT_SECRET: 's'.repeat(40), FEED_TOKEN: 't'.repeat(40) },
+      'worker',
+    );
+    expect(withSecrets.jwtSecret).not.toBe('s'.repeat(40));
+    expect(withSecrets.feeds.token).not.toBe('t'.repeat(40));
+    expect(withSecrets.jwtSecret).not.toBe(worker.jwtSecret);
+    // Everything else is checked as for the API.
+    expect(() =>
+      parseConfig({ ...production, PUBLIC_BASE_URL: 'http://x.example' }, 'worker'),
+    ).toThrow(/at PUBLIC_BASE_URL/);
+  });
+
+  it('requires an https REALISTIMO_API_BASE_URL in production only', () => {
+    const production = {
+      NODE_ENV: 'production',
+      JWT_SECRET: 'z'.repeat(32),
+      FEED_TOKEN: 'f'.repeat(32),
+      PUBLIC_BASE_URL: 'https://imotsync.example',
+    };
+
+    expect(() =>
+      makeConfig({ ...production, REALISTIMO_API_BASE_URL: 'http://realistimo.example' }),
+    ).toThrow(
+      /must be an https:\/\/ origin when NODE_ENV=production[\s\S]*at REALISTIMO_API_BASE_URL/,
+    );
+    expect(
+      makeConfig({ REALISTIMO_API_BASE_URL: 'http://127.0.0.1:9' }).portals.realistimo.apiBaseUrl,
+    ).toBe('http://127.0.0.1:9');
+  });
+
+  it('turns an empty REALISTIMO_API_KEY and PUBLIC_LISTING_URL_TEMPLATE into null', () => {
+    const config = makeConfig({ REALISTIMO_API_KEY: '', PUBLIC_LISTING_URL_TEMPLATE: ' ' });
+
+    expect(config.portals.realistimo.apiKey).toBeNull();
+    expect(config.portals.publicListingUrlTemplate).toBeNull();
   });
 
   it('works with the minimal environment used by the other unit tests', () => {

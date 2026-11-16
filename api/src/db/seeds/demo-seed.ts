@@ -3,8 +3,10 @@ import path from 'node:path';
 import type { Knex } from 'knex';
 import { hashPassword } from '../../lib/password.js';
 import { UPLOADED_PHOTOS_FOLDER } from '../../modules/images/stored-files.js';
+import type { PortalRegistry } from '../../portals/registry.js';
 import type { NewJob, NewPortalListing, NewProperty, NewPropertyImage, NewUser } from '../types.js';
 import { DEMO_PROPERTIES, DEMO_USERS, refCodeFor } from './demo-data.js';
+import { buildSeedFeedPayloads } from './feed-payloads.js';
 import { createPlaceholderPhoto } from './placeholder-photos.js';
 
 /** Demo photos live in their own folder under UPLOAD_DIR, which the seed owns completely. */
@@ -17,6 +19,14 @@ export interface DemoSeedOptions {
   demoPassword: string;
   /** Reference time for the relative timestamps (default: now). */
   now?: Date;
+  /**
+   * The portal adapters. When given, published and removed listings of feed portals get the
+   * payloads their adapters build (see feed-payloads.ts), and every published or pending
+   * listing is checked against its portal's rules.
+   */
+  registry?: PortalRegistry;
+  /** PUBLIC_BASE_URL for the photo URLs adapters see (default http://localhost:3000). */
+  publicBaseUrl?: string;
 }
 
 export interface DemoSeedSummary {
@@ -25,9 +35,18 @@ export interface DemoSeedSummary {
   propertyImages: number;
   portalListings: number;
   jobs: number;
+  /** Listings that got a feed payload, per portal (empty without a registry). */
+  feedPayloads: Record<string, number>;
 }
 
-const REQUIRED_TABLES = ['users', 'properties', 'property_images', 'portal_listings', 'jobs'];
+const REQUIRED_TABLES = [
+  'users',
+  'properties',
+  'property_images',
+  'portal_listings',
+  'jobs',
+  'portal_sync_state',
+];
 
 /**
  * Replaces all data with the demo data set.
@@ -77,6 +96,14 @@ export async function runDemoSeed(db: Knex, options: DemoSeedOptions): Promise<D
     const id = index + 1;
     const refCode = refCodeFor(id);
     const createdAt = minutesAgo(demo.createdAgo);
+    // An update job is queued by an edit, so the property changed when the newest one was
+    // queued (feeds show this as the offer's last update).
+    const editedAgo = Math.min(
+      demo.createdAgo,
+      ...demo.listings.flatMap((listing) =>
+        (listing.jobs ?? []).filter((job) => job.action === 'update').map((job) => job.createdAgo),
+      ),
+    );
 
     properties.push({
       id,
@@ -96,7 +123,7 @@ export async function runDemoSeed(db: Knex, options: DemoSeedOptions): Promise<D
       status: demo.status,
       created_by: demo.createdBy,
       created_at: createdAt,
-      updated_at: createdAt,
+      updated_at: minutesAgo(editedAgo),
     });
 
     for (let number = 1; number <= demo.photoCount; number++) {
@@ -125,6 +152,9 @@ export async function runDemoSeed(db: Knex, options: DemoSeedOptions): Promise<D
       const listingId = listings.length + 1;
       const listingCreatedAt = minutesAgo(listing.createdAgo);
       const lastJob = listing.jobs?.at(-1);
+      const lastRemoval = listing.jobs?.findLast(
+        (job) => job.action === 'remove' && job.status === 'succeeded',
+      );
       listings.push({
         id: listingId,
         property_id: id,
@@ -133,6 +163,10 @@ export async function runDemoSeed(db: Knex, options: DemoSeedOptions): Promise<D
         status: listing.status,
         last_error: listing.lastError ?? null,
         published_at: listing.publishedAgo === undefined ? null : minutesAgo(listing.publishedAgo),
+        removed_at:
+          listing.status === 'removed'
+            ? minutesAgo(lastRemoval?.finishedAgo ?? lastJob?.finishedAgo ?? listing.createdAgo)
+            : null,
         created_at: listingCreatedAt,
         updated_at: minutesAgo(lastJob?.finishedAgo ?? lastJob?.createdAgo ?? listing.createdAgo),
       });
@@ -169,8 +203,9 @@ export async function runDemoSeed(db: Knex, options: DemoSeedOptions): Promise<D
     }
   }
 
-  await db.transaction(async (trx) => {
+  const feedPayloads = await db.transaction(async (trx) => {
     // Children first, so no foreign key is ever violated.
+    await trx('portal_sync_state').delete();
     await trx('jobs').delete();
     await trx('portal_listings').delete();
     await trx('property_images').delete();
@@ -182,6 +217,13 @@ export async function runDemoSeed(db: Knex, options: DemoSeedOptions): Promise<D
     await trx('property_images').insert(images);
     await trx('portal_listings').insert(listings);
     await trx('jobs').insert(jobs);
+
+    if (!options.registry) return {};
+    const built = await buildSeedFeedPayloads(trx, {
+      registry: options.registry,
+      publicBaseUrl: options.publicBaseUrl ?? 'http://localhost:3000',
+    });
+    return built.payloads;
   });
   await rm(path.join(options.uploadDir, UPLOADED_PHOTOS_FOLDER), { recursive: true, force: true });
 
@@ -191,5 +233,6 @@ export async function runDemoSeed(db: Knex, options: DemoSeedOptions): Promise<D
     propertyImages: images.length,
     portalListings: listings.length,
     jobs: jobs.length,
+    feedPayloads,
   };
 }

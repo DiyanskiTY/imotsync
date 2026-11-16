@@ -11,7 +11,12 @@ import type { ErrorBody } from '../../src/middleware/error-handler.js';
 import { HTTP_METHODS, type HttpMethod, type Operation } from '../../src/openapi/types.js';
 import { APP_VERSION } from '../../src/version.js';
 import { PHOTO_LIMITS } from '../../src/modules/images/image-processing.js';
-import { expectDocumented, matchesSchema, openApiDocument } from '../support/openapi.js';
+import {
+  expectDocumented,
+  matchesSchema,
+  openApiDocument,
+  servedPath,
+} from '../support/openapi.js';
 import { dbWithAdmin, makeConfig } from './helpers.js';
 
 const config = makeConfig();
@@ -70,7 +75,7 @@ describe('OpenAPI document', () => {
 
   it('reports the API version from package.json', () => {
     expect(openApiDocument.info.version).toBe(APP_VERSION);
-    expect(APP_VERSION).toBe('0.2.0');
+    expect(APP_VERSION).toBe('0.3.0');
   });
 
   it('gives every operation a unique operationId', () => {
@@ -128,15 +133,24 @@ describe('OpenAPI document', () => {
     ).toBe(false);
   });
 
-  it('lists only health, login and the document itself as public', () => {
+  it('lists only health, login, the document itself and the feeds as public', () => {
     const publicOperations = operations
       .filter(([, , operation]) => isPublic(operation))
       .map(([method, path]) => `${method.toUpperCase()} ${path}`);
 
     expect(publicOperations.sort()).toEqual([
+      'GET /feeds/{portal}/{token}.xml',
       'GET /health',
       'GET /openapi.json',
       'POST /auth/login',
+    ]);
+  });
+
+  it('serves everything under /api except the feeds, which have their own server', () => {
+    const served = operations.map(([, path]) => servedPath(path));
+
+    expect(served.filter((path) => !path.startsWith('/api/'))).toEqual([
+      '/feeds/{portal}/{token}.xml',
     ]);
   });
 });
@@ -145,16 +159,27 @@ describe('route coverage', () => {
   it('documents exactly the routes the app registers', () => {
     const appStack = stackOf((app as unknown as { router: unknown }).router) ?? [];
 
-    // Routes live in the /api router only, never directly on the app.
+    // Routes live in two routers, never directly on the app: /api, and the public /feeds.
     expect(appStack.filter((layer) => layer.route)).toEqual([]);
     const routers = appStack.filter((layer) => stackOf(layer.handle));
-    expect(routers).toHaveLength(1);
-    const [api] = routers;
+    expect(routers).toHaveLength(2);
+    const [api, feeds] = routers;
     expect(api?.match('/api/properties')).toBe(true);
     expect(api?.match('/uploads/x.jpg')).toBe(false);
+    expect(feeds?.match('/feeds/realistimo/token.xml')).toBe(true);
+    expect(feeds?.match('/api/properties')).toBe(false);
 
-    const registered = [...collectRoutes(stackOf(api?.handle) ?? [])].sort();
-    const documented = operations.map(([method, path]) => `${method.toUpperCase()} ${path}`).sort();
+    const registered = [
+      ...[...collectRoutes(stackOf(api?.handle) ?? [])].map((route) =>
+        route.replace(' /', ' /api/'),
+      ),
+      ...[...collectRoutes(stackOf(feeds?.handle) ?? [])].map((route) =>
+        route.replace(' /', ' /feeds/'),
+      ),
+    ].sort();
+    const documented = operations
+      .map(([method, path]) => `${method.toUpperCase()} ${servedPath(path)}`)
+      .sort();
 
     expect(registered).toEqual(documented);
   });
@@ -164,7 +189,7 @@ describe('authentication on every operation', () => {
   it.each(operations)(
     '%s %s needs a token unless it is documented as public',
     async (method, path, operation) => {
-      const url = `/api${path.replace(/\{\w+\}/g, '1')}`;
+      const url = servedPath(path).replace(/\{\w+\}/g, '1');
       const res = await request(app)[method](url);
 
       if (isPublic(operation)) {

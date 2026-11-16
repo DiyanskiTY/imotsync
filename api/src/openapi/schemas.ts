@@ -1,5 +1,7 @@
 import {
   DEAL_TYPES,
+  JOB_ACTIONS,
+  JOB_STATUSES,
   PORTAL_LISTING_STATUSES,
   PROPERTY_STATUSES,
   PROPERTY_TYPES,
@@ -8,6 +10,8 @@ import {
 import { API_ERROR_CODES } from '../lib/http-error.js';
 import { PHOTO_LIMITS } from '../modules/images/image-processing.js';
 import { FIELD_LIMITS } from '../modules/properties/properties.validators.js';
+import { BULK_DELETE_RESULTS } from '../modules/publishing/publishing.mappers.js';
+import { BULK_MAX_PROPERTIES } from '../modules/publishing/publishing.validators.js';
 import type { JsonSchema } from './types.js';
 
 /*
@@ -149,13 +153,21 @@ function inputFields(): Record<string, JsonSchema> {
 }
 
 export const schemas: Record<string, JsonSchema> = {
-  ErrorDetail: object(
-    {
+  ErrorDetail: {
+    type: 'object',
+    required: ['field', 'message'],
+    additionalProperties: false,
+    description: 'One problem with one field.',
+    properties: {
+      portal: {
+        type: 'string',
+        description: 'NOT_READY only: the portal whose rules the field breaks.',
+        examples: ['demo'],
+      },
       field: { type: 'string', examples: ['price'] },
       message: { type: 'string', examples: ['must be a number from 0 to 9999999999.99'] },
     },
-    { description: 'One problem with one field.' },
-  ),
+  },
 
   Error: object(
     {
@@ -175,7 +187,8 @@ export const schemas: Record<string, JsonSchema> = {
           details: {
             type: 'array',
             items: ref('ErrorDetail'),
-            description: 'Per-field problems (VALIDATION_ERROR, and per-file for photo uploads).',
+            description:
+              'Per-field problems (VALIDATION_ERROR, per file for photo uploads, per portal and field for NOT_READY).',
           },
         },
       },
@@ -342,4 +355,242 @@ export const schemas: Record<string, JsonSchema> = {
       examples: [[12, 10, 11]],
     },
   }),
+
+  /* ---- publishing ---- */
+
+  Portal: object(
+    {
+      key: { type: 'string', description: 'Portal adapter key.', examples: ['demo'] },
+      displayName: { type: 'string', examples: ['Demo portal'] },
+      mode: {
+        type: 'string',
+        enum: ['feed', 'push'],
+        description:
+          'feed: the portal downloads a feed from this server on its own schedule. push: the worker sends each change to the portal.',
+      },
+      feedUrl: nullable('string', {
+        description:
+          'Feed portals: the URL to give the portal (public, protected by the FEED_TOKEN in its path). Push portals: null.',
+        examples: ['https://imotsync.example/feeds/bazar/0f8fad5bd9cb469fa16570867728950e.xml'],
+      }),
+    },
+    { description: 'A portal this server publishes to.' },
+  ),
+
+  PortalList: object({ data: { type: 'array', items: ref('Portal') } }),
+
+  ValidationIssue: object(
+    {
+      field: { type: 'string', examples: ['images'] },
+      message: { type: 'string', examples: ['The demo portal needs at least one photo.'] },
+    },
+    { description: "One thing that keeps a property from a portal, by the portal's rules." },
+  ),
+
+  PortalCheck: object(
+    {
+      portal: { type: 'string', examples: ['demo'] },
+      displayName: { type: 'string', examples: ['Demo portal'] },
+      ready: { type: 'boolean', description: 'True when there are no issues.' },
+      issues: { type: 'array', items: ref('ValidationIssue') },
+    },
+    { description: 'The pre-publish check of one property against one portal.' },
+  ),
+
+  PortalCheckList: object({ data: { type: 'array', items: ref('PortalCheck') } }),
+
+  PublishRequest: object({
+    portals: {
+      type: 'array',
+      items: { type: 'string' },
+      minItems: 1,
+      uniqueItems: true,
+      description: 'Keys of registered portals (GET /portals).',
+      examples: [['demo']],
+    },
+  }),
+
+  UnpublishRequest: {
+    type: 'object',
+    additionalProperties: false,
+    description: 'Unknown fields are rejected. Without portals: every portal of the property.',
+    properties: {
+      portals: {
+        type: 'array',
+        items: { type: 'string' },
+        minItems: 1,
+        uniqueItems: true,
+        description: 'Keys of registered portals.',
+        examples: [['demo']],
+      },
+    },
+  },
+
+  JobListing: object({
+    id: id('Portal listing id.'),
+    portal: { type: 'string', examples: ['demo'] },
+    status: { type: 'string', enum: [...PORTAL_LISTING_STATUSES] },
+  }),
+
+  JobProperty: object({
+    id: id('Property id.'),
+    refCode: { type: 'string', examples: ['IS-00042'] },
+    title: nullable('string'),
+  }),
+
+  Job: object(
+    {
+      id: id('Job id.'),
+      action: { type: 'string', enum: [...JOB_ACTIONS] },
+      status: {
+        type: 'string',
+        enum: [...JOB_STATUSES],
+        description:
+          'queued (waiting, possibly for a retry at runAfter), running, succeeded or failed (final).',
+      },
+      attempts: { type: 'integer', minimum: 0, description: 'Attempts started so far.' },
+      maxAttempts: { type: 'integer', minimum: 1 },
+      runAfter: dateTime('The job is not started before this time'),
+      lockedAt: {
+        ...nullable('string', { format: 'date-time' }),
+        description: 'Running jobs: when the worker took it (ISO 8601, UTC).',
+      },
+      lockedBy: nullable('string', {
+        description: 'Running jobs: the worker that holds it (host:pid:random).',
+      }),
+      lastError: nullable('string', { description: 'Error of the last failed attempt.' }),
+      result: {
+        type: ['object', 'null'],
+        description:
+          'Outcome of the last attempt: {message, externalId?, details?} on success, {error, retryable, httpStatus?, code?, errorId?, retryInSeconds?} on failure. An unexpected error (code UNEXPECTED) is stored only as a generic message with an errorId; its details are in the worker log under that id.',
+      },
+      finishedAt: {
+        ...nullable('string', { format: 'date-time' }),
+        description: 'When the job succeeded or failed for good (ISO 8601, UTC).',
+      },
+      createdAt: dateTime('When the job was queued'),
+      updatedAt: dateTime('When the job last changed'),
+      listing: ref('JobListing'),
+      property: { oneOf: [ref('JobProperty'), { type: 'null' }] },
+    },
+    { description: 'One publish, update or remove operation for one portal listing.' },
+  ),
+
+  JobList: object({
+    data: { type: 'array', items: ref('Job') },
+    meta: ref('PaginationMeta'),
+  }),
+
+  JobResponse: object({ data: ref('Job') }),
+
+  PublishResult: object(
+    {
+      listings: {
+        type: 'array',
+        items: ref('PortalListing'),
+        description: 'The listings involved, after the change, ordered by portal.',
+      },
+      jobs: {
+        type: 'array',
+        items: ref('Job'),
+        description:
+          'The jobs that will carry the request out: new ones, or queued ones the request was merged into.',
+      },
+    },
+    { description: 'What a publish or unpublish request queued.' },
+  ),
+
+  PublishResponse: object({ data: ref('PublishResult') }),
+
+  BulkPublishRequest: object({
+    propertyIds: {
+      type: 'array',
+      items: { type: 'integer', minimum: 1 },
+      minItems: 1,
+      maxItems: BULK_MAX_PROPERTIES,
+      uniqueItems: true,
+      examples: [[1, 2, 3]],
+    },
+    portals: {
+      type: 'array',
+      items: { type: 'string' },
+      minItems: 1,
+      uniqueItems: true,
+      examples: [['demo']],
+    },
+  }),
+
+  BulkPublishItem: {
+    type: 'object',
+    required: ['propertyId', 'ok'],
+    additionalProperties: false,
+    description:
+      'ok: jobs were queued. Not ok: error says why (NOT_FOUND, CONFLICT for an archived property, NOT_READY with issues, INTERNAL_ERROR for an unexpected error, which is logged; the other properties go ahead).',
+    properties: {
+      propertyId: id('Property id.'),
+      ok: { type: 'boolean' },
+      issues: { type: 'array', items: ref('ErrorDetail') },
+      jobs: { type: 'array', items: ref('Job') },
+      error: {
+        type: 'object',
+        required: ['code', 'message'],
+        additionalProperties: false,
+        properties: {
+          code: { type: 'string', enum: ['NOT_FOUND', 'CONFLICT', 'NOT_READY', 'INTERNAL_ERROR'] },
+          message: { type: 'string' },
+        },
+      },
+    },
+  },
+
+  BulkPublishResponse: object({ data: { type: 'array', items: ref('BulkPublishItem') } }),
+
+  BulkDeleteRequest: object({
+    propertyIds: {
+      type: 'array',
+      items: { type: 'integer', minimum: 1 },
+      minItems: 1,
+      maxItems: BULK_MAX_PROPERTIES,
+      uniqueItems: true,
+      examples: [[8, 9]],
+    },
+  }),
+
+  BulkDeleteItem: {
+    type: 'object',
+    required: ['propertyId', 'result'],
+    additionalProperties: false,
+    properties: {
+      propertyId: id('Property id.'),
+      result: {
+        type: 'string',
+        enum: [...BULK_DELETE_RESULTS],
+        description:
+          'deleted: gone now (nothing was online). removal_queued: archived, remove jobs queued; the worker deletes it once every portal has removed it. deletion_scheduled: nothing is online, but a feed still serves its removal (a Bazar.bg item kept as out of stock for BAZAR_REMOVED_RETENTION_DAYS): archived; the worker deletes it once that period has passed. not_found: no such property. error: an unexpected error (logged; see error); the other properties go ahead.',
+      },
+      error: {
+        type: 'object',
+        required: ['code', 'message'],
+        additionalProperties: false,
+        description: "Only with result 'error'.",
+        properties: {
+          code: { type: 'string', enum: ['INTERNAL_ERROR'] },
+          message: { type: 'string' },
+        },
+      },
+    },
+  },
+
+  DeletionScheduledResponse: object({
+    data: object({
+      result: {
+        type: 'string',
+        enum: ['deletion_scheduled'],
+        description:
+          'The property was archived and is deleted by the worker once its removal has been served for the retention period.',
+      },
+    }),
+  }),
+
+  BulkDeleteResponse: object({ data: { type: 'array', items: ref('BulkDeleteItem') } }),
 };

@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import type { PropertyImageRow } from '../../db/types.js';
+import { enqueueUpdatesForProperty } from '../../jobs/enqueue.js';
+import { queueTransaction } from '../../jobs/transaction.js';
 import {
   conflict,
   HttpError,
@@ -23,7 +25,7 @@ import {
 import { toImageDto, type PropertyImageDto } from './images.mappers.js';
 import { createImageRepository } from './images.repository.js';
 import { displayName, PHOTO_FIELD, type UploadedPhoto } from './photo-upload.js';
-import { deleteStoredPhotos, propertyPhotoFolder } from './stored-files.js';
+import { propertyPhotoFolder } from './stored-files.js';
 
 /** Stands in for an upload's bytes once its JPEG exists. */
 const RELEASED = Buffer.alloc(0);
@@ -156,7 +158,7 @@ export function createImagesService(deps: { db: Knex; storage: FileStorage; logg
           rows.push({ key, image });
         }
 
-        inserted = await db.transaction(async (trx) => {
+        inserted = await queueTransaction(db, async (trx) => {
           const properties = createPropertyRepository(trx);
           const images = createImageRepository(trx);
           // The lock serialises uploads to one property, so the count and the sort order
@@ -183,6 +185,8 @@ export function createImagesService(deps: { db: Knex; storage: FileStorage; logg
             );
           }
           await properties.touch(propertyId);
+          // Published listings get the new photos through update jobs.
+          await enqueueUpdatesForProperty(trx, propertyId);
           // Read back inside the transaction, so no query runs after the commit: a failure
           // there would delete the files of rows that are already saved.
           return images.findByIds(ids);
@@ -203,7 +207,7 @@ export function createImagesService(deps: { db: Knex; storage: FileStorage; logg
 
     /** Sets the display order. `imageIds` must list every photo of the property exactly once. */
     async reorder(propertyId: number, imageIds: readonly number[]): Promise<PropertyImageDto[]> {
-      const rows = await db.transaction(async (trx) => {
+      const rows = await queueTransaction(db, async (trx) => {
         const properties = createPropertyRepository(trx);
         const images = createImageRepository(trx);
         if (!(await properties.findForUpdate(propertyId))) {
@@ -233,14 +237,21 @@ export function createImagesService(deps: { db: Knex; storage: FileStorage; logg
           if (sortOrders.get(id) !== index) await images.setSortOrder(id, index);
         }
         await properties.touch(propertyId);
+        // Portals show the photos in this order (the first is the main photo).
+        const orderChanged = current.some((image, index) => image.id !== imageIds[index]);
+        if (orderChanged) await enqueueUpdatesForProperty(trx, propertyId);
         return images.listForProperty(propertyId);
       });
       return rows.map(toImageDto);
     },
 
-    /** Deletes one photo of the property: the row first, then the file. */
+    /**
+     * Deletes one photo of the property: the row, and update jobs for the listings that show
+     * it. The file stays until the worker's photo sweep deletes it: a stored feed payload
+     * links to it until an update job replaces that payload (or for good, if the job fails).
+     */
     async remove(propertyId: number, imageId: number): Promise<void> {
-      const url = await db.transaction(async (trx) => {
+      await queueTransaction(db, async (trx) => {
         const properties = createPropertyRepository(trx);
         const images = createImageRepository(trx);
         if (!(await properties.findForUpdate(propertyId))) {
@@ -252,9 +263,8 @@ export function createImagesService(deps: { db: Knex; storage: FileStorage; logg
         }
         await images.delete(imageId);
         await properties.touch(propertyId);
-        return image.url;
+        await enqueueUpdatesForProperty(trx, propertyId);
       });
-      await deleteStoredPhotos(storage, logger, [url]);
     },
   };
 }

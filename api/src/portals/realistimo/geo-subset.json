@@ -1,0 +1,3688 @@
+{
+  "source": "https://static.realistimo.com/build/media/blog-assets/integration-files/geo-db/realistimo_geo_db.csv",
+  "downloadedAt": "2026-11-15T22:38:56.000Z",
+  "sourceLastModified": "2026-11-13T11:24:08.000Z",
+  "description": "Subset of Realistimo's geo list (realistimo_geo_db.csv): every city row, plus the neighbourhood rows of София, Пловдив, Варна, Бургас, Банско (where the CSV has any). Columns that are NULL in the CSV are left out. <internal_id> takes internal_id, never the CSV row id. Regenerate with src/portals/realistimo/download-geo.ts --subset.",
+  "rows": [
+    {
+      "internal_id": 22,
+      "location_type": "city",
+      "state_name": "Варна",
+      "city_name": "Варна"
+    },
+    {
+      "internal_id": 1040,
+      "location_type": "city",
+      "state_name": "Варна",
+      "city_name": "Девня"
+    },
+    {
+      "internal_id": 1255,
+      "location_type": "city",
+      "state_name": "Варна",
+      "city_name": "Белослав"
+    },
+    {
+      "internal_id": 1348,
+      "location_type": "city",
+      "state_name": "Варна",
+      "city_name": "Златни Пясъци"
+    },
+    {
+      "internal_id": 1373,
+      "location_type": "city",
+      "state_name": "Варна",
+      "city_name": "Провадия"
+    },
+    {
+      "internal_id": 1509,
+      "location_type": "city",
+      "state_name": "Варна",
+      "city_name": "Вълчи Дол"
+    },
+    {
+      "internal_id": 1575,
+      "location_type": "city",
+      "state_name": "Варна",
+      "city_name": "Долни Чифлик"
+    },
+    {
+      "internal_id": 1726,
+      "location_type": "city",
+      "state_name": "Варна",
+      "city_name": "Бяла"
+    },
+    {
+      "internal_id": 1829,
+      "location_type": "city",
+      "state_name": "Варна",
+      "city_name": "Аксаково"
+    },
+    {
+      "internal_id": 2207,
+      "location_type": "city",
+      "state_name": "Варна",
+      "city_name": "Дългопол"
+    },
+    {
+      "internal_id": 2327,
+      "location_type": "city",
+      "state_name": "Варна",
+      "city_name": "Игнатиево"
+    },
+    {
+      "internal_id": 2665,
+      "location_type": "city",
+      "state_name": "Варна",
+      "city_name": "Суворово"
+    },
+    {
+      "internal_id": 2977,
+      "location_type": "city",
+      "state_name": "Сливен",
+      "city_name": "Нова Загора"
+    },
+    {
+      "internal_id": 3171,
+      "location_type": "city",
+      "state_name": "Сливен",
+      "city_name": "Сливен"
+    },
+    {
+      "internal_id": 3666,
+      "location_type": "city",
+      "state_name": "Сливен",
+      "city_name": "Котел"
+    },
+    {
+      "internal_id": 3773,
+      "location_type": "city",
+      "state_name": "Сливен",
+      "city_name": "Твърдица"
+    },
+    {
+      "internal_id": 3886,
+      "location_type": "city",
+      "state_name": "Сливен",
+      "city_name": "Шивачево"
+    },
+    {
+      "internal_id": 4191,
+      "location_type": "city",
+      "state_name": "Сливен",
+      "city_name": "Кермен"
+    },
+    {
+      "internal_id": 4669,
+      "location_type": "city",
+      "state_name": "София",
+      "city_name": "София"
+    },
+    {
+      "internal_id": 8692,
+      "location_type": "city",
+      "state_name": "София",
+      "city_name": "Банкя"
+    },
+    {
+      "internal_id": 9698,
+      "location_type": "city",
+      "state_name": "София",
+      "city_name": "Нови Искър"
+    },
+    {
+      "internal_id": 10023,
+      "location_type": "city",
+      "state_name": "София",
+      "city_name": "Бухово"
+    },
+    {
+      "internal_id": 10400,
+      "location_type": "city",
+      "state_name": "Хасково",
+      "city_name": "Хасково"
+    },
+    {
+      "internal_id": 10906,
+      "location_type": "city",
+      "state_name": "Хасково",
+      "city_name": "Свиленград"
+    },
+    {
+      "internal_id": 11145,
+      "location_type": "city",
+      "state_name": "Хасково",
+      "city_name": "Димитровград"
+    },
+    {
+      "internal_id": 11369,
+      "location_type": "city",
+      "state_name": "Хасково",
+      "city_name": "Харманли"
+    },
+    {
+      "internal_id": 11529,
+      "location_type": "city",
+      "state_name": "Хасково",
+      "city_name": "Любимец"
+    },
+    {
+      "internal_id": 11657,
+      "location_type": "city",
+      "state_name": "Хасково",
+      "city_name": "Симеоновград"
+    },
+    {
+      "internal_id": 12073,
+      "location_type": "city",
+      "state_name": "Хасково",
+      "city_name": "Ивайловград"
+    },
+    {
+      "internal_id": 12265,
+      "location_type": "city",
+      "state_name": "Хасково",
+      "city_name": "Маджарово"
+    },
+    {
+      "internal_id": 12319,
+      "location_type": "city",
+      "state_name": "Хасково",
+      "city_name": "Меричлери"
+    },
+    {
+      "internal_id": 12574,
+      "location_type": "city",
+      "state_name": "Хасково",
+      "city_name": "Тополовград"
+    },
+    {
+      "internal_id": 12791,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Ботевград"
+    },
+    {
+      "internal_id": 12932,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Ихтиман"
+    },
+    {
+      "internal_id": 13058,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Костенец"
+    },
+    {
+      "internal_id": 13179,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Елин Пелин"
+    },
+    {
+      "internal_id": 13284,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Етрополе"
+    },
+    {
+      "internal_id": 13425,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Правец"
+    },
+    {
+      "internal_id": 13507,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Божурище"
+    },
+    {
+      "internal_id": 13603,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Боровец"
+    },
+    {
+      "internal_id": 13654,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Драгоман"
+    },
+    {
+      "internal_id": 13727,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Костинброд"
+    },
+    {
+      "internal_id": 13955,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Самоков"
+    },
+    {
+      "internal_id": 14154,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Своге"
+    },
+    {
+      "internal_id": 14300,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Сливница"
+    },
+    {
+      "internal_id": 14443,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Пирдоп"
+    },
+    {
+      "internal_id": 14566,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Златица"
+    },
+    {
+      "internal_id": 14681,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Долна Баня"
+    },
+    {
+      "internal_id": 15123,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Годеч"
+    },
+    {
+      "internal_id": 15461,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Копривщица"
+    },
+    {
+      "internal_id": 15710,
+      "location_type": "city",
+      "state_name": "Софийска",
+      "city_name": "Момин Проход"
+    },
+    {
+      "internal_id": 16514,
+      "location_type": "city",
+      "state_name": "Силистра",
+      "city_name": "Силистра"
+    },
+    {
+      "internal_id": 16816,
+      "location_type": "city",
+      "state_name": "Силистра",
+      "city_name": "Тутракан"
+    },
+    {
+      "internal_id": 16957,
+      "location_type": "city",
+      "state_name": "Силистра",
+      "city_name": "Дулово"
+    },
+    {
+      "internal_id": 17035,
+      "location_type": "city",
+      "state_name": "Силистра",
+      "city_name": "Алфатар"
+    },
+    {
+      "internal_id": 17201,
+      "location_type": "city",
+      "state_name": "Силистра",
+      "city_name": "Главиница"
+    },
+    {
+      "internal_id": 17790,
+      "location_type": "city",
+      "state_name": "Видин",
+      "city_name": "Видин"
+    },
+    {
+      "internal_id": 18095,
+      "location_type": "city",
+      "state_name": "Видин",
+      "city_name": "Кула"
+    },
+    {
+      "internal_id": 18159,
+      "location_type": "city",
+      "state_name": "Видин",
+      "city_name": "Белоградчик"
+    },
+    {
+      "internal_id": 18306,
+      "location_type": "city",
+      "state_name": "Видин",
+      "city_name": "Брегово"
+    },
+    {
+      "internal_id": 18454,
+      "location_type": "city",
+      "state_name": "Видин",
+      "city_name": "Грамада"
+    },
+    {
+      "internal_id": 18493,
+      "location_type": "city",
+      "state_name": "Видин",
+      "city_name": "Димово"
+    },
+    {
+      "internal_id": 18566,
+      "location_type": "city",
+      "state_name": "Видин",
+      "city_name": "Дунавци"
+    },
+    {
+      "internal_id": 18922,
+      "location_type": "city",
+      "state_name": "Шумен",
+      "city_name": "Шумен"
+    },
+    {
+      "internal_id": 19439,
+      "location_type": "city",
+      "state_name": "Шумен",
+      "city_name": "Велики Преслав"
+    },
+    {
+      "internal_id": 19567,
+      "location_type": "city",
+      "state_name": "Шумен",
+      "city_name": "Нови Пазар"
+    },
+    {
+      "internal_id": 19673,
+      "location_type": "city",
+      "state_name": "Шумен",
+      "city_name": "Плиска"
+    },
+    {
+      "internal_id": 19702,
+      "location_type": "city",
+      "state_name": "Шумен",
+      "city_name": "Смядово"
+    },
+    {
+      "internal_id": 19802,
+      "location_type": "city",
+      "state_name": "Шумен",
+      "city_name": "Каспичан"
+    },
+    {
+      "internal_id": 19981,
+      "location_type": "city",
+      "state_name": "Шумен",
+      "city_name": "Върбица"
+    },
+    {
+      "internal_id": 20170,
+      "location_type": "city",
+      "state_name": "Шумен",
+      "city_name": "Каолиново"
+    },
+    {
+      "internal_id": 20652,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Айтос"
+    },
+    {
+      "internal_id": 20839,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Бургас"
+    },
+    {
+      "internal_id": 21448,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Карнобат"
+    },
+    {
+      "internal_id": 21627,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Поморие"
+    },
+    {
+      "internal_id": 21777,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Ахелой"
+    },
+    {
+      "internal_id": 21811,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Царево"
+    },
+    {
+      "internal_id": 21926,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Созопол"
+    },
+    {
+      "internal_id": 22040,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Слънчев Бряг"
+    },
+    {
+      "internal_id": 22634,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Приморско"
+    },
+    {
+      "internal_id": 22718,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Несебър"
+    },
+    {
+      "internal_id": 22835,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Черноморец"
+    },
+    {
+      "internal_id": 22921,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Каблешково"
+    },
+    {
+      "internal_id": 22986,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Китен"
+    },
+    {
+      "internal_id": 23082,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Свети Влас"
+    },
+    {
+      "internal_id": 23182,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Средец"
+    },
+    {
+      "internal_id": 23298,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Ахтопол"
+    },
+    {
+      "internal_id": 23342,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Малко Търново"
+    },
+    {
+      "internal_id": 23427,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Обзор"
+    },
+    {
+      "internal_id": 23579,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Българово"
+    },
+    {
+      "internal_id": 23869,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Камено"
+    },
+    {
+      "internal_id": 24426,
+      "location_type": "city",
+      "state_name": "Бургас",
+      "city_name": "Сунгурларе"
+    },
+    {
+      "internal_id": 24662,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Благоевград"
+    },
+    {
+      "internal_id": 25012,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Петрич"
+    },
+    {
+      "internal_id": 25233,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Сандански"
+    },
+    {
+      "internal_id": 25444,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Банско"
+    },
+    {
+      "internal_id": 25678,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Кресна"
+    },
+    {
+      "internal_id": 25755,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Гоце Делчев"
+    },
+    {
+      "internal_id": 25959,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Мелник"
+    },
+    {
+      "internal_id": 25974,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Симитли"
+    },
+    {
+      "internal_id": 26132,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Хаджидимово"
+    },
+    {
+      "internal_id": 26439,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Разлог"
+    },
+    {
+      "internal_id": 26650,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Добринище"
+    },
+    {
+      "internal_id": 26748,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Белица"
+    },
+    {
+      "internal_id": 26794,
+      "location_type": "city",
+      "state_name": "Благоевград",
+      "city_name": "Якоруда"
+    },
+    {
+      "internal_id": 28120,
+      "location_type": "city",
+      "state_name": "Търговище",
+      "city_name": "Търговище"
+    },
+    {
+      "internal_id": 28392,
+      "location_type": "city",
+      "state_name": "Търговище",
+      "city_name": "Попово"
+    },
+    {
+      "internal_id": 28554,
+      "location_type": "city",
+      "state_name": "Търговище",
+      "city_name": "Омуртаг"
+    },
+    {
+      "internal_id": 28677,
+      "location_type": "city",
+      "state_name": "Търговище",
+      "city_name": "Антоново"
+    },
+    {
+      "internal_id": 29135,
+      "location_type": "city",
+      "state_name": "Търговище",
+      "city_name": "Опака"
+    },
+    {
+      "internal_id": 29398,
+      "location_type": "city",
+      "state_name": "Габрово",
+      "city_name": "Габрово"
+    },
+    {
+      "internal_id": 30032,
+      "location_type": "city",
+      "state_name": "Габрово",
+      "city_name": "Дряново"
+    },
+    {
+      "internal_id": 30113,
+      "location_type": "city",
+      "state_name": "Габрово",
+      "city_name": "Севлиево"
+    },
+    {
+      "internal_id": 30303,
+      "location_type": "city",
+      "state_name": "Габрово",
+      "city_name": "Плачковци"
+    },
+    {
+      "internal_id": 30334,
+      "location_type": "city",
+      "state_name": "Габрово",
+      "city_name": "Трявна"
+    },
+    {
+      "internal_id": 31287,
+      "location_type": "city",
+      "state_name": "Смолян",
+      "city_name": "Смолян"
+    },
+    {
+      "internal_id": 31556,
+      "location_type": "city",
+      "state_name": "Смолян",
+      "city_name": "Златоград"
+    },
+    {
+      "internal_id": 31656,
+      "location_type": "city",
+      "state_name": "Смолян",
+      "city_name": "Мадан"
+    },
+    {
+      "internal_id": 31727,
+      "location_type": "city",
+      "state_name": "Смолян",
+      "city_name": "Рудозем"
+    },
+    {
+      "internal_id": 31773,
+      "location_type": "city",
+      "state_name": "Смолян",
+      "city_name": "Чепеларе"
+    },
+    {
+      "internal_id": 31874,
+      "location_type": "city",
+      "state_name": "Смолян",
+      "city_name": "Девин"
+    },
+    {
+      "internal_id": 32010,
+      "location_type": "city",
+      "state_name": "Смолян",
+      "city_name": "Доспат"
+    },
+    {
+      "internal_id": 32535,
+      "location_type": "city",
+      "state_name": "Смолян",
+      "city_name": "Неделино"
+    },
+    {
+      "internal_id": 33156,
+      "location_type": "city",
+      "state_name": "Русе",
+      "city_name": "Русе"
+    },
+    {
+      "internal_id": 35392,
+      "location_type": "city",
+      "state_name": "Враца",
+      "city_name": "Враца"
+    },
+    {
+      "internal_id": 35728,
+      "location_type": "city",
+      "state_name": "Враца",
+      "city_name": "Козлодуй"
+    },
+    {
+      "internal_id": 35947,
+      "location_type": "city",
+      "state_name": "Враца",
+      "city_name": "Мездра"
+    },
+    {
+      "internal_id": 36049,
+      "location_type": "city",
+      "state_name": "Враца",
+      "city_name": "Бяла Слатина"
+    },
+    {
+      "internal_id": 36160,
+      "location_type": "city",
+      "state_name": "Враца",
+      "city_name": "Роман"
+    },
+    {
+      "internal_id": 36213,
+      "location_type": "city",
+      "state_name": "Враца",
+      "city_name": "Мизия"
+    },
+    {
+      "internal_id": 36286,
+      "location_type": "city",
+      "state_name": "Враца",
+      "city_name": "Оряхово"
+    },
+    {
+      "internal_id": 36384,
+      "location_type": "city",
+      "state_name": "Враца",
+      "city_name": "Криводол"
+    },
+    {
+      "internal_id": 37507,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Пазарджик"
+    },
+    {
+      "internal_id": 37819,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Велинград"
+    },
+    {
+      "internal_id": 38120,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Панагюрище"
+    },
+    {
+      "internal_id": 38354,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Пещера"
+    },
+    {
+      "internal_id": 38510,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Батак"
+    },
+    {
+      "internal_id": 38587,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Белово"
+    },
+    {
+      "internal_id": 38663,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Септември"
+    },
+    {
+      "internal_id": 38734,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Стрелча"
+    },
+    {
+      "internal_id": 38834,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Ракитово"
+    },
+    {
+      "internal_id": 38931,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Брацигово"
+    },
+    {
+      "internal_id": 39125,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Ветрен"
+    },
+    {
+      "internal_id": 39538,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Костандово"
+    },
+    {
+      "internal_id": 39968,
+      "location_type": "city",
+      "state_name": "Пазарджик",
+      "city_name": "Сърница"
+    },
+    {
+      "internal_id": 40132,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Плевен"
+    },
+    {
+      "internal_id": 40587,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Белене"
+    },
+    {
+      "internal_id": 40679,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Кнежа"
+    },
+    {
+      "internal_id": 40803,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Долни Дъбник"
+    },
+    {
+      "internal_id": 40888,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Никопол"
+    },
+    {
+      "internal_id": 40944,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Червен Бряг"
+    },
+    {
+      "internal_id": 41073,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Левски"
+    },
+    {
+      "internal_id": 41591,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Гулянци"
+    },
+    {
+      "internal_id": 41682,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Долна Митрополия"
+    },
+    {
+      "internal_id": 41820,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Искър"
+    },
+    {
+      "internal_id": 41940,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Койнаре"
+    },
+    {
+      "internal_id": 42309,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Пордим"
+    },
+    {
+      "internal_id": 42478,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Славяново"
+    },
+    {
+      "internal_id": 42654,
+      "location_type": "city",
+      "state_name": "Плевен",
+      "city_name": "Тръстеник"
+    },
+    {
+      "internal_id": 42875,
+      "location_type": "city",
+      "state_name": "Ямбол",
+      "city_name": "Ямбол"
+    },
+    {
+      "internal_id": 43218,
+      "location_type": "city",
+      "state_name": "Ямбол",
+      "city_name": "Елхово"
+    },
+    {
+      "internal_id": 43321,
+      "location_type": "city",
+      "state_name": "Ямбол",
+      "city_name": "Стралджа"
+    },
+    {
+      "internal_id": 43420,
+      "location_type": "city",
+      "state_name": "Ямбол",
+      "city_name": "Болярово"
+    },
+    {
+      "internal_id": 43948,
+      "location_type": "city",
+      "state_name": "Кюстендил",
+      "city_name": "Дупница"
+    },
+    {
+      "internal_id": 44262,
+      "location_type": "city",
+      "state_name": "Кюстендил",
+      "city_name": "Кюстендил"
+    },
+    {
+      "internal_id": 44669,
+      "location_type": "city",
+      "state_name": "Кюстендил",
+      "city_name": "Бобов Дол"
+    },
+    {
+      "internal_id": 44731,
+      "location_type": "city",
+      "state_name": "Кюстендил",
+      "city_name": "Рила"
+    },
+    {
+      "internal_id": 44790,
+      "location_type": "city",
+      "state_name": "Кюстендил",
+      "city_name": "Бобошево"
+    },
+    {
+      "internal_id": 44852,
+      "location_type": "city",
+      "state_name": "Кюстендил",
+      "city_name": "Кочериново"
+    },
+    {
+      "internal_id": 45380,
+      "location_type": "city",
+      "state_name": "Кюстендил",
+      "city_name": "Сапарева Баня"
+    },
+    {
+      "internal_id": 45700,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Велико Търново"
+    },
+    {
+      "internal_id": 46029,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Горна Оряховица"
+    },
+    {
+      "internal_id": 46238,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Лясковец"
+    },
+    {
+      "internal_id": 46322,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Свищов"
+    },
+    {
+      "internal_id": 46527,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Долна Оряховица"
+    },
+    {
+      "internal_id": 46589,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Стражица"
+    },
+    {
+      "internal_id": 46669,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Елена"
+    },
+    {
+      "internal_id": 46813,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Дебелец"
+    },
+    {
+      "internal_id": 46862,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Златарица"
+    },
+    {
+      "internal_id": 46916,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Килифарево"
+    },
+    {
+      "internal_id": 46963,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Павликени"
+    },
+    {
+      "internal_id": 47067,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Полски Тръмбеш"
+    },
+    {
+      "internal_id": 47132,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Сухиндол"
+    },
+    {
+      "internal_id": 47373,
+      "location_type": "city",
+      "state_name": "Велико Търново",
+      "city_name": "Бяла Черква"
+    },
+    {
+      "internal_id": 48647,
+      "location_type": "city",
+      "state_name": "Монтана",
+      "city_name": "Лом"
+    },
+    {
+      "internal_id": 48939,
+      "location_type": "city",
+      "state_name": "Монтана",
+      "city_name": "Монтана"
+    },
+    {
+      "internal_id": 49202,
+      "location_type": "city",
+      "state_name": "Монтана",
+      "city_name": "Вършец"
+    },
+    {
+      "internal_id": 49284,
+      "location_type": "city",
+      "state_name": "Монтана",
+      "city_name": "Бойчиновци"
+    },
+    {
+      "internal_id": 49313,
+      "location_type": "city",
+      "state_name": "Монтана",
+      "city_name": "Брусарци"
+    },
+    {
+      "internal_id": 49350,
+      "location_type": "city",
+      "state_name": "Монтана",
+      "city_name": "Вълчедръм"
+    },
+    {
+      "internal_id": 50109,
+      "location_type": "city",
+      "state_name": "Монтана",
+      "city_name": "Чипровци"
+    },
+    {
+      "internal_id": 50193,
+      "location_type": "city",
+      "state_name": "Монтана",
+      "city_name": "Берковица"
+    },
+    {
+      "internal_id": 50373,
+      "location_type": "city",
+      "state_name": "Ловеч",
+      "city_name": "Ловеч"
+    },
+    {
+      "internal_id": 50665,
+      "location_type": "city",
+      "state_name": "Ловеч",
+      "city_name": "Троян"
+    },
+    {
+      "internal_id": 50831,
+      "location_type": "city",
+      "state_name": "Ловеч",
+      "city_name": "Априлци"
+    },
+    {
+      "internal_id": 50999,
+      "location_type": "city",
+      "state_name": "Ловеч",
+      "city_name": "Луковит"
+    },
+    {
+      "internal_id": 51138,
+      "location_type": "city",
+      "state_name": "Ловеч",
+      "city_name": "Тетевен"
+    },
+    {
+      "internal_id": 51278,
+      "location_type": "city",
+      "state_name": "Ловеч",
+      "city_name": "Ябланица"
+    },
+    {
+      "internal_id": 51939,
+      "location_type": "city",
+      "state_name": "Ловеч",
+      "city_name": "Летница"
+    },
+    {
+      "internal_id": 52266,
+      "location_type": "city",
+      "state_name": "Ловеч",
+      "city_name": "Угърчин"
+    },
+    {
+      "internal_id": 52379,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Асеновград"
+    },
+    {
+      "internal_id": 52753,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Карлово"
+    },
+    {
+      "internal_id": 52948,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив"
+    },
+    {
+      "internal_id": 54096,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Сопот"
+    },
+    {
+      "internal_id": 54220,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Калофер"
+    },
+    {
+      "internal_id": 54316,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Брезово"
+    },
+    {
+      "internal_id": 54375,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Перущица"
+    },
+    {
+      "internal_id": 54464,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Съединение"
+    },
+    {
+      "internal_id": 54576,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Раковски"
+    },
+    {
+      "internal_id": 54786,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Първомай"
+    },
+    {
+      "internal_id": 54999,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Садово"
+    },
+    {
+      "internal_id": 55041,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Стамболийски"
+    },
+    {
+      "internal_id": 55160,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Хисаря"
+    },
+    {
+      "internal_id": 55272,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Клисура"
+    },
+    {
+      "internal_id": 55443,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Баня"
+    },
+    {
+      "internal_id": 56670,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Куклен"
+    },
+    {
+      "internal_id": 56843,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Лъки"
+    },
+    {
+      "internal_id": 57983,
+      "location_type": "city",
+      "state_name": "Пловдив",
+      "city_name": "Кричим"
+    },
+    {
+      "internal_id": 58095,
+      "location_type": "city",
+      "state_name": "Перник",
+      "city_name": "Перник"
+    },
+    {
+      "internal_id": 58690,
+      "location_type": "city",
+      "state_name": "Перник",
+      "city_name": "Батановци"
+    },
+    {
+      "internal_id": 58721,
+      "location_type": "city",
+      "state_name": "Перник",
+      "city_name": "Брезник"
+    },
+    {
+      "internal_id": 58812,
+      "location_type": "city",
+      "state_name": "Перник",
+      "city_name": "Радомир"
+    },
+    {
+      "internal_id": 58963,
+      "location_type": "city",
+      "state_name": "Перник",
+      "city_name": "Трън"
+    },
+    {
+      "internal_id": 59233,
+      "location_type": "city",
+      "state_name": "Перник",
+      "city_name": "Земен"
+    },
+    {
+      "internal_id": 59588,
+      "location_type": "city",
+      "state_name": "Кърджали",
+      "city_name": "Кърджали"
+    },
+    {
+      "internal_id": 59843,
+      "location_type": "city",
+      "state_name": "Кърджали",
+      "city_name": "Ардино"
+    },
+    {
+      "internal_id": 59884,
+      "location_type": "city",
+      "state_name": "Кърджали",
+      "city_name": "Джебел"
+    },
+    {
+      "internal_id": 59936,
+      "location_type": "city",
+      "state_name": "Кърджали",
+      "city_name": "Крумовград"
+    },
+    {
+      "internal_id": 59997,
+      "location_type": "city",
+      "state_name": "Кърджали",
+      "city_name": "Момчилград"
+    },
+    {
+      "internal_id": 61155,
+      "location_type": "city",
+      "state_name": "Стара Загора",
+      "city_name": "Казанлък"
+    },
+    {
+      "internal_id": 61422,
+      "location_type": "city",
+      "state_name": "Стара Загора",
+      "city_name": "Стара Загора"
+    },
+    {
+      "internal_id": 61825,
+      "location_type": "city",
+      "state_name": "Стара Загора",
+      "city_name": "Чирпан"
+    },
+    {
+      "internal_id": 62019,
+      "location_type": "city",
+      "state_name": "Стара Загора",
+      "city_name": "Раднево"
+    },
+    {
+      "internal_id": 62145,
+      "location_type": "city",
+      "state_name": "Стара Загора",
+      "city_name": "Гълъбово"
+    },
+    {
+      "internal_id": 62316,
+      "location_type": "city",
+      "state_name": "Стара Загора",
+      "city_name": "Гурково"
+    },
+    {
+      "internal_id": 62368,
+      "location_type": "city",
+      "state_name": "Стара Загора",
+      "city_name": "Крън"
+    },
+    {
+      "internal_id": 62423,
+      "location_type": "city",
+      "state_name": "Стара Загора",
+      "city_name": "Мъглиж"
+    },
+    {
+      "internal_id": 62458,
+      "location_type": "city",
+      "state_name": "Стара Загора",
+      "city_name": "Павел Баня"
+    },
+    {
+      "internal_id": 62518,
+      "location_type": "city",
+      "state_name": "Стара Загора",
+      "city_name": "Шипка"
+    },
+    {
+      "internal_id": 63187,
+      "location_type": "city",
+      "state_name": "Стара Загора",
+      "city_name": "Николаево"
+    },
+    {
+      "internal_id": 63805,
+      "location_type": "city",
+      "state_name": "Добрич",
+      "city_name": "Добрич"
+    },
+    {
+      "internal_id": 64330,
+      "location_type": "city",
+      "state_name": "Добрич",
+      "city_name": "Албена"
+    },
+    {
+      "internal_id": 64357,
+      "location_type": "city",
+      "state_name": "Добрич",
+      "city_name": "Балчик"
+    },
+    {
+      "internal_id": 64515,
+      "location_type": "city",
+      "state_name": "Добрич",
+      "city_name": "Генерал Тошево"
+    },
+    {
+      "internal_id": 64662,
+      "location_type": "city",
+      "state_name": "Добрич",
+      "city_name": "Каварна"
+    },
+    {
+      "internal_id": 64821,
+      "location_type": "city",
+      "state_name": "Добрич",
+      "city_name": "Тервел"
+    },
+    {
+      "internal_id": 64887,
+      "location_type": "city",
+      "state_name": "Добрич",
+      "city_name": "Шабла"
+    },
+    {
+      "internal_id": 65829,
+      "location_type": "city",
+      "state_name": "Разград",
+      "city_name": "Разград"
+    },
+    {
+      "internal_id": 66094,
+      "location_type": "city",
+      "state_name": "Разград",
+      "city_name": "Завет"
+    },
+    {
+      "internal_id": 66153,
+      "location_type": "city",
+      "state_name": "Разград",
+      "city_name": "Кубрат"
+    },
+    {
+      "internal_id": 66265,
+      "location_type": "city",
+      "state_name": "Разград",
+      "city_name": "Исперих"
+    },
+    {
+      "internal_id": 66363,
+      "location_type": "city",
+      "state_name": "Разград",
+      "city_name": "Цар Калоян"
+    },
+    {
+      "internal_id": 66430,
+      "location_type": "city",
+      "state_name": "Разград",
+      "city_name": "Лозница"
+    },
+    {
+      "internal_id": 67860,
+      "location_type": "city",
+      "state_name": "Русе",
+      "city_name": "Бяла"
+    },
+    {
+      "internal_id": 67861,
+      "location_type": "city",
+      "state_name": "Русе",
+      "city_name": "Борово"
+    },
+    {
+      "internal_id": 67862,
+      "location_type": "city",
+      "state_name": "Русе",
+      "city_name": "Ветово"
+    },
+    {
+      "internal_id": 67863,
+      "location_type": "city",
+      "state_name": "Русе",
+      "city_name": "Сеново"
+    },
+    {
+      "internal_id": 67865,
+      "location_type": "city",
+      "state_name": "Русе",
+      "city_name": "Мартен"
+    },
+    {
+      "internal_id": 67866,
+      "location_type": "city",
+      "state_name": "Русе",
+      "city_name": "Две Могили"
+    },
+    {
+      "internal_id": 67867,
+      "location_type": "city",
+      "state_name": "Русе",
+      "city_name": "Сливо Поле"
+    },
+    {
+      "internal_id": 67864,
+      "location_type": "city",
+      "state_name": "Русе",
+      "city_name": "Глоджево"
+    },
+    {
+      "internal_id": 8625,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Челопечене"
+    },
+    {
+      "internal_id": 70243,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "м-ст Щъркелово гнездо"
+    },
+    {
+      "internal_id": 70241,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "В.З. Люлин"
+    },
+    {
+      "internal_id": 8556,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Ботунец"
+    },
+    {
+      "internal_id": 1197,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Свети Константин и Елена"
+    },
+    {
+      "internal_id": 2850,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Прибой"
+    },
+    {
+      "internal_id": 2855,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Фичоза"
+    },
+    {
+      "internal_id": 2858,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Ракитника"
+    },
+    {
+      "internal_id": 2877,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Боровец - Север"
+    },
+    {
+      "internal_id": 2879,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "к.к. Чайка"
+    },
+    {
+      "internal_id": 2886,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Франга дере"
+    },
+    {
+      "internal_id": 2894,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Добрева чешма"
+    },
+    {
+      "internal_id": 2896,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Пчелина"
+    },
+    {
+      "internal_id": 2905,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Сълзица"
+    },
+    {
+      "internal_id": 2907,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Ален мак"
+    },
+    {
+      "internal_id": 70278,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "м-ст Мечката"
+    },
+    {
+      "internal_id": 2969,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Слънчев ден"
+    },
+    {
+      "internal_id": 2972,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Манастирски рид"
+    },
+    {
+      "internal_id": 8662,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Република 2"
+    },
+    {
+      "internal_id": 8622,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Требич"
+    },
+    {
+      "internal_id": 70275,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Мадика"
+    },
+    {
+      "internal_id": 69900,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Автогара"
+    },
+    {
+      "internal_id": 1020,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Аспарухово"
+    },
+    {
+      "internal_id": 69901,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Базар Левски"
+    },
+    {
+      "internal_id": 69902,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Бизнес парк Варна"
+    },
+    {
+      "internal_id": 69903,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Бизнес хотел"
+    },
+    {
+      "internal_id": 1028,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Бриз"
+    },
+    {
+      "internal_id": 1025,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Виница"
+    },
+    {
+      "internal_id": 69904,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "ВИНС - Червен площад"
+    },
+    {
+      "internal_id": 923,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Възраждане 1"
+    },
+    {
+      "internal_id": 1018,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Възраждане 2"
+    },
+    {
+      "internal_id": 69906,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Възраждане 3"
+    },
+    {
+      "internal_id": 69907,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Възраждане 4"
+    },
+    {
+      "internal_id": 1023,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Галата"
+    },
+    {
+      "internal_id": 69908,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Гранд Мол"
+    },
+    {
+      "internal_id": 69909,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Гръцка махала"
+    },
+    {
+      "internal_id": 69911,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "ЖП Гара"
+    },
+    {
+      "internal_id": 1026,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Завод Дружба"
+    },
+    {
+      "internal_id": 69912,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Зимно кино Тракия"
+    },
+    {
+      "internal_id": 1019,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Изгрев"
+    },
+    {
+      "internal_id": 1024,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Кайсиева градина"
+    },
+    {
+      "internal_id": 69913,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Колхозен пазар"
+    },
+    {
+      "internal_id": 69914,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Конфуто"
+    },
+    {
+      "internal_id": 1013,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Левски"
+    },
+    {
+      "internal_id": 69916,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Летище"
+    },
+    {
+      "internal_id": 69917,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Лятно кино Тракия"
+    },
+    {
+      "internal_id": 69918,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Максуда"
+    },
+    {
+      "internal_id": 69919,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Метро"
+    },
+    {
+      "internal_id": 1014,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Младост 1"
+    },
+    {
+      "internal_id": 69920,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Младост 2"
+    },
+    {
+      "internal_id": 69921,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Окръжна болница - Генерали"
+    },
+    {
+      "internal_id": 69922,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Операта"
+    },
+    {
+      "internal_id": 1015,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Победа"
+    },
+    {
+      "internal_id": 69924,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Погреби"
+    },
+    {
+      "internal_id": 69925,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Пристанище Варна и крайбрежна зона"
+    },
+    {
+      "internal_id": 69927,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Свети Никола"
+    },
+    {
+      "internal_id": 69928,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Север"
+    },
+    {
+      "internal_id": 69929,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Спортна зала"
+    },
+    {
+      "internal_id": 69930,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Стадион Спартак"
+    },
+    {
+      "internal_id": 1022,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Трошево"
+    },
+    {
+      "internal_id": 69932,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "ХЕИ"
+    },
+    {
+      "internal_id": 69933,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Христо Ботев"
+    },
+    {
+      "internal_id": 1027,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Цветен квартал"
+    },
+    {
+      "internal_id": 69934,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Централна поща"
+    },
+    {
+      "internal_id": 1035,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Център"
+    },
+    {
+      "internal_id": 69935,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Чайка"
+    },
+    {
+      "internal_id": 69936,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Чаталджа"
+    },
+    {
+      "internal_id": 718,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Акчелар"
+    },
+    {
+      "internal_id": 824,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Балам Дере"
+    },
+    {
+      "internal_id": 69940,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Боровец - Юг"
+    },
+    {
+      "internal_id": 69942,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Евксиноград"
+    },
+    {
+      "internal_id": 69943,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Зеленика"
+    },
+    {
+      "internal_id": 69944,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Кантара"
+    },
+    {
+      "internal_id": 710,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Кочмар"
+    },
+    {
+      "internal_id": 69945,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Крушките"
+    },
+    {
+      "internal_id": 69946,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Лазур"
+    },
+    {
+      "internal_id": 69947,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Ментешето"
+    },
+    {
+      "internal_id": 69949,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Перчемлията"
+    },
+    {
+      "internal_id": 711,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Планова"
+    },
+    {
+      "internal_id": 69950,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Морска Градина"
+    },
+    {
+      "internal_id": 681,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Сотира"
+    },
+    {
+      "internal_id": 1029,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Промишлена зона - Запад"
+    },
+    {
+      "internal_id": 69958,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Траката"
+    },
+    {
+      "internal_id": 69959,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Владиславово"
+    },
+    {
+      "internal_id": 21412,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Акациите"
+    },
+    {
+      "internal_id": 21442,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Банево"
+    },
+    {
+      "internal_id": 21406,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Братя Миладинови"
+    },
+    {
+      "internal_id": 21438,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Ветрен"
+    },
+    {
+      "internal_id": 21408,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Възраждане"
+    },
+    {
+      "internal_id": 21407,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Горно Езерово"
+    },
+    {
+      "internal_id": 21403,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Долно Езерово"
+    },
+    {
+      "internal_id": 21415,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Зорница"
+    },
+    {
+      "internal_id": 21413,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Изгрев"
+    },
+    {
+      "internal_id": 21416,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Крайморие"
+    },
+    {
+      "internal_id": 21409,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Лазур"
+    },
+    {
+      "internal_id": 21445,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Летище Бургас"
+    },
+    {
+      "internal_id": 21410,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Лозово"
+    },
+    {
+      "internal_id": 21404,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Меден Рудник"
+    },
+    {
+      "internal_id": 69965,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Пети километър"
+    },
+    {
+      "internal_id": 21414,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Победа"
+    },
+    {
+      "internal_id": 69966,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Пристанище Бургас"
+    },
+    {
+      "internal_id": 21434,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Промишлена зона - Юг"
+    },
+    {
+      "internal_id": 69967,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Промишлена зона - Север"
+    },
+    {
+      "internal_id": 69968,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Промишлена зона - Лозово"
+    },
+    {
+      "internal_id": 21446,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Рудник"
+    },
+    {
+      "internal_id": 21405,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Сарафово"
+    },
+    {
+      "internal_id": 21411,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Славейков"
+    },
+    {
+      "internal_id": 69970,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Център"
+    },
+    {
+      "internal_id": 21447,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Черно море"
+    },
+    {
+      "internal_id": 69983,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Нептун"
+    },
+    {
+      "internal_id": 69984,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Общината"
+    },
+    {
+      "internal_id": 70004,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Широк Център"
+    },
+    {
+      "internal_id": 54083,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Каменица 1"
+    },
+    {
+      "internal_id": 54075,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Изгрев"
+    },
+    {
+      "internal_id": 54072,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Беломорски"
+    },
+    {
+      "internal_id": 54090,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Гагарин"
+    },
+    {
+      "internal_id": 54078,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Коматево"
+    },
+    {
+      "internal_id": 54087,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Съдийски"
+    },
+    {
+      "internal_id": 54074,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Прослав"
+    },
+    {
+      "internal_id": 54086,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Остромила"
+    },
+    {
+      "internal_id": 53974,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Тракия"
+    },
+    {
+      "internal_id": 54089,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Мараша"
+    },
+    {
+      "internal_id": 54091,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Столипиново"
+    },
+    {
+      "internal_id": 54095,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Район Западен"
+    },
+    {
+      "internal_id": 70035,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Център"
+    },
+    {
+      "internal_id": 54071,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Кючук Париж"
+    },
+    {
+      "internal_id": 54079,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Тракия-парк Лаута"
+    },
+    {
+      "internal_id": 54070,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Христо Смирненски"
+    },
+    {
+      "internal_id": 54077,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Захарна фабрика"
+    },
+    {
+      "internal_id": 54084,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Капана"
+    },
+    {
+      "internal_id": 70037,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Кабакум"
+    },
+    {
+      "internal_id": 70038,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Електрон"
+    },
+    {
+      "internal_id": 70039,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Въстанически"
+    },
+    {
+      "internal_id": 70040,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Брезовско шосе"
+    },
+    {
+      "internal_id": 70041,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Асеновградско шосе"
+    },
+    {
+      "internal_id": 70042,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Гладно поле"
+    },
+    {
+      "internal_id": 70043,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Голямоконарско шосе"
+    },
+    {
+      "internal_id": 70044,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Гуджуците"
+    },
+    {
+      "internal_id": 70045,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Западна Дъга"
+    },
+    {
+      "internal_id": 70097,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Източна дъга"
+    },
+    {
+      "internal_id": 70086,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Индустриална зона-Север"
+    },
+    {
+      "internal_id": 70088,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Индустриална зона-Тракия"
+    },
+    {
+      "internal_id": 70087,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Индустриална зона-Изток"
+    },
+    {
+      "internal_id": 70089,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Индустриална зона-Юг"
+    },
+    {
+      "internal_id": 70098,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Индустриална зона-Изгрев"
+    },
+    {
+      "internal_id": 70099,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Марица север"
+    },
+    {
+      "internal_id": 70100,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Каменица 2"
+    },
+    {
+      "internal_id": 70101,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Карловско шосе"
+    },
+    {
+      "internal_id": 70102,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Коматевски възел"
+    },
+    {
+      "internal_id": 70103,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Коматевско шосе"
+    },
+    {
+      "internal_id": 70104,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Кършияка"
+    },
+    {
+      "internal_id": 70105,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Младежки хълм"
+    },
+    {
+      "internal_id": 70106,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Отдих и култура"
+    },
+    {
+      "internal_id": 70107,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Пазарджишко шосе"
+    },
+    {
+      "internal_id": 70108,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Рогошко шосе"
+    },
+    {
+      "internal_id": 70109,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Старият град"
+    },
+    {
+      "internal_id": 70110,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Сточна гара"
+    },
+    {
+      "internal_id": 70111,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Терзиите"
+    },
+    {
+      "internal_id": 70112,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Филипово"
+    },
+    {
+      "internal_id": 70113,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Цариградско шосе"
+    },
+    {
+      "internal_id": 70114,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Централна гара"
+    },
+    {
+      "internal_id": 70115,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Южна дъга"
+    },
+    {
+      "internal_id": 70139,
+      "location_type": "neighborhood",
+      "state_name": "Варна",
+      "city_name": "Варна",
+      "neighborhood_name": "Промишлена зона - Север"
+    },
+    {
+      "internal_id": 70152,
+      "location_type": "neighborhood",
+      "state_name": "Бургас",
+      "city_name": "Бургас",
+      "neighborhood_name": "Лахана"
+    },
+    {
+      "internal_id": 70175,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Южен"
+    },
+    {
+      "internal_id": 70176,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Шекер махала"
+    },
+    {
+      "internal_id": 70177,
+      "location_type": "neighborhood",
+      "state_name": "Пловдив",
+      "city_name": "Пловдив",
+      "neighborhood_name": "Харман махала"
+    },
+    {
+      "internal_id": 70190,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Център"
+    },
+    {
+      "internal_id": 8324,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Манастирски ливади-Изток"
+    },
+    {
+      "internal_id": 8660,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Манастирски ливади-Запад"
+    },
+    {
+      "internal_id": 8621,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Лозенец"
+    },
+    {
+      "internal_id": 8618,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Гоце Делчев"
+    },
+    {
+      "internal_id": 8604,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Градина"
+    },
+    {
+      "internal_id": 8541,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Дианабад"
+    },
+    {
+      "internal_id": 8587,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Студентски град"
+    },
+    {
+      "internal_id": 8629,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Дървеница"
+    },
+    {
+      "internal_id": 8631,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Мусагеница"
+    },
+    {
+      "internal_id": 8544,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Изток"
+    },
+    {
+      "internal_id": 8574,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Младост-1А"
+    },
+    {
+      "internal_id": 8538,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Младост-2"
+    },
+    {
+      "internal_id": 8539,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Младост-3"
+    },
+    {
+      "internal_id": 8537,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Младост-1"
+    },
+    {
+      "internal_id": 70191,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "НПЗ Изток"
+    },
+    {
+      "internal_id": 8540,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Младост-4"
+    },
+    {
+      "internal_id": 8542,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Горубляне"
+    },
+    {
+      "internal_id": 70192,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "7-ми 11-ти километър"
+    },
+    {
+      "internal_id": 8602,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Полигона"
+    },
+    {
+      "internal_id": 70193,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "НПЗ Искър"
+    },
+    {
+      "internal_id": 8608,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "В.З. Врана-Лозен Триъгълника"
+    },
+    {
+      "internal_id": 8536,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Слатина"
+    },
+    {
+      "internal_id": 8617,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Редута"
+    },
+    {
+      "internal_id": 70194,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Оборище"
+    },
+    {
+      "internal_id": 8688,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Подуяне"
+    },
+    {
+      "internal_id": 8553,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Банишора"
+    },
+    {
+      "internal_id": 8588,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Света Троица"
+    },
+    {
+      "internal_id": 8559,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Гео Милев"
+    },
+    {
+      "internal_id": 8560,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Гевгелийски"
+    },
+    {
+      "internal_id": 8563,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Западен парк"
+    },
+    {
+      "internal_id": 8592,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Разсадника"
+    },
+    {
+      "internal_id": 8565,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Зона Б-18"
+    },
+    {
+      "internal_id": 8566,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Зона Б-19"
+    },
+    {
+      "internal_id": 8567,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Зона Б-5"
+    },
+    {
+      "internal_id": 8571,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Красна поляна-1"
+    },
+    {
+      "internal_id": 8598,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Факултета"
+    },
+    {
+      "internal_id": 8661,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Овча Купел 1"
+    },
+    {
+      "internal_id": 70195,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Овча Купел"
+    },
+    {
+      "internal_id": 8589,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Славия"
+    },
+    {
+      "internal_id": 8612,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Павлово"
+    },
+    {
+      "internal_id": 8614,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Бъкстон"
+    },
+    {
+      "internal_id": 8626,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Красно село"
+    },
+    {
+      "internal_id": 8620,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Борово"
+    },
+    {
+      "internal_id": 8549,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Стрелбище"
+    },
+    {
+      "internal_id": 8551,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Хиподрума"
+    },
+    {
+      "internal_id": 70196,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "НПЗ Средец"
+    },
+    {
+      "internal_id": 8590,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Сердика"
+    },
+    {
+      "internal_id": 8572,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Лагера"
+    },
+    {
+      "internal_id": 8650,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Медицинска академия"
+    },
+    {
+      "internal_id": 8605,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Фондови жилища"
+    },
+    {
+      "internal_id": 8564,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Захарна фабрика"
+    },
+    {
+      "internal_id": 8624,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Модерно Предградие"
+    },
+    {
+      "internal_id": 70197,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "СПЗ Модерно Предградие"
+    },
+    {
+      "internal_id": 8582,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Обеля 1"
+    },
+    {
+      "internal_id": 8581,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Обеля"
+    },
+    {
+      "internal_id": 8583,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Обеля 2"
+    },
+    {
+      "internal_id": 8633,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Люлин-1"
+    },
+    {
+      "internal_id": 8635,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Люлин-3"
+    },
+    {
+      "internal_id": 8628,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Люлин-4"
+    },
+    {
+      "internal_id": 8637,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Люлин-6"
+    },
+    {
+      "internal_id": 8636,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Люлин-5"
+    },
+    {
+      "internal_id": 8638,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Люлин-7"
+    },
+    {
+      "internal_id": 70198,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Люлин-център"
+    },
+    {
+      "internal_id": 8630,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Люлин-8"
+    },
+    {
+      "internal_id": 8639,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Люлин-9"
+    },
+    {
+      "internal_id": 8640,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Люлин-10"
+    },
+    {
+      "internal_id": 8593,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Република"
+    },
+    {
+      "internal_id": 8600,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Връбница-1"
+    },
+    {
+      "internal_id": 8601,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Връбница-2"
+    },
+    {
+      "internal_id": 8577,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Надежда 3"
+    },
+    {
+      "internal_id": 8579,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Надежда 4"
+    },
+    {
+      "internal_id": 8575,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Надежда 1"
+    },
+    {
+      "internal_id": 8576,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Надежда 2"
+    },
+    {
+      "internal_id": 8597,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Триъгълника-Надежда"
+    },
+    {
+      "internal_id": 8596,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Толстой"
+    },
+    {
+      "internal_id": 8613,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Свобода"
+    },
+    {
+      "internal_id": 8569,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Илиянци"
+    },
+    {
+      "internal_id": 8664,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Промишлена зона Военна рампа"
+    },
+    {
+      "internal_id": 8586,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Орландовци"
+    },
+    {
+      "internal_id": 8609,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Промишлена зона Илиянци"
+    },
+    {
+      "internal_id": 8555,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Бенковски"
+    },
+    {
+      "internal_id": 8573,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Малашевци"
+    },
+    {
+      "internal_id": 8552,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Хаджи Димитър"
+    },
+    {
+      "internal_id": 8689,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Стефан Караджа"
+    },
+    {
+      "internal_id": 70199,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "НПЗ Хаджи Димитър"
+    },
+    {
+      "internal_id": 8645,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Яворов"
+    },
+    {
+      "internal_id": 8627,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Сухата река"
+    },
+    {
+      "internal_id": 70200,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "СПЗ Слатина"
+    },
+    {
+      "internal_id": 8653,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Христо Ботев"
+    },
+    {
+      "internal_id": 8678,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "летище София Север"
+    },
+    {
+      "internal_id": 8558,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Враждебна"
+    },
+    {
+      "internal_id": 8619,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Левски-Г"
+    },
+    {
+      "internal_id": 8615,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Левски"
+    },
+    {
+      "internal_id": 8616,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Левски-В"
+    },
+    {
+      "internal_id": 8643,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Абдовица"
+    },
+    {
+      "internal_id": 8591,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Димитър Миленков"
+    },
+    {
+      "internal_id": 8623,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Витоша"
+    },
+    {
+      "internal_id": 8652,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Кръстова вада"
+    },
+    {
+      "internal_id": 8562,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Драгалевци"
+    },
+    {
+      "internal_id": 8557,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Бояна"
+    },
+    {
+      "internal_id": 8648,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Красна поляна-3"
+    },
+    {
+      "internal_id": 8647,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Красна поляна-2"
+    },
+    {
+      "internal_id": 8561,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Горна Баня"
+    },
+    {
+      "internal_id": 8646,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Карпузица"
+    },
+    {
+      "internal_id": 8570,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Княжево"
+    },
+    {
+      "internal_id": 8690,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Малинова Долина"
+    },
+    {
+      "internal_id": 8595,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Симеоново"
+    },
+    {
+      "internal_id": 8373,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "В.З. Симеоново-Драгалевци"
+    },
+    {
+      "internal_id": 70201,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "В.З. Малинова Долина"
+    },
+    {
+      "internal_id": 70203,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "В.З. Бункера"
+    },
+    {
+      "internal_id": 8632,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Камбаните"
+    },
+    {
+      "internal_id": 8656,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "София Вилидж"
+    },
+    {
+      "internal_id": 70205,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "м-ст Подлозище"
+    },
+    {
+      "internal_id": 8599,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Филиповци"
+    },
+    {
+      "internal_id": 8655,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Зона Б-5-3"
+    },
+    {
+      "internal_id": 8607,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Южен парк"
+    },
+    {
+      "internal_id": 8550,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Хладилника"
+    },
+    {
+      "internal_id": 8634,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Люлин-2"
+    },
+    {
+      "internal_id": 8568,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Илинден"
+    },
+    {
+      "internal_id": 8554,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Белите брези"
+    },
+    {
+      "internal_id": 8548,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Иван Вазов"
+    },
+    {
+      "internal_id": 8671,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "жг Зоопарк"
+    },
+    {
+      "internal_id": 8543,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Изгрев"
+    },
+    {
+      "internal_id": 8545,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Дружба-1"
+    },
+    {
+      "internal_id": 8546,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Дружба-2"
+    },
+    {
+      "internal_id": 70207,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "В.З. Гърдова глава"
+    },
+    {
+      "internal_id": 70211,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "м-ст Мала кория"
+    },
+    {
+      "internal_id": 70212,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "В.З. Черния кос"
+    },
+    {
+      "internal_id": 8685,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Експериментален"
+    },
+    {
+      "internal_id": 8547,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Овча Купел 2"
+    },
+    {
+      "internal_id": 70215,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "В.З. Киноцентъра"
+    },
+    {
+      "internal_id": 8669,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "В.З. Американски колеж"
+    },
+    {
+      "internal_id": 70240,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "м-ст яз. Искър"
+    },
+    {
+      "internal_id": 8585,
+      "location_type": "neighborhood",
+      "state_name": "София",
+      "city_name": "София",
+      "neighborhood_name": "Суходол"
+    }
+  ]
+}

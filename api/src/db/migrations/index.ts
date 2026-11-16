@@ -4,6 +4,9 @@ import * as createProperties from './0002_create_properties.js';
 import * as createPropertyImages from './0003_create_property_images.js';
 import * as createPortalListings from './0004_create_portal_listings.js';
 import * as createJobs from './0005_create_jobs.js';
+import * as addPublishingColumns from './0006_add_publishing_columns.js';
+import * as createPortalSyncState from './0007_create_portal_sync_state.js';
+import * as addFeedChangedAt from './0008_add_feed_changed_at.js';
 
 /**
  * All migrations, in the order they run. New migrations are appended here.
@@ -18,6 +21,9 @@ export const MIGRATIONS: readonly (readonly [name: string, migration: Knex.Migra
   ['0003_create_property_images', createPropertyImages],
   ['0004_create_portal_listings', createPortalListings],
   ['0005_create_jobs', createJobs],
+  ['0006_add_publishing_columns', addPublishingColumns],
+  ['0007_create_portal_sync_state', createPortalSyncState],
+  ['0008_add_feed_changed_at', addFeedChangedAt],
 ];
 
 export const MIGRATION_NAMES: readonly string[] = MIGRATIONS.map(([name]) => name);

@@ -14,12 +14,15 @@ export const API_ERROR_CODES = [
   'PAYLOAD_TOO_LARGE',
   'UNSUPPORTED_MEDIA_TYPE',
   'TOO_MANY_REQUESTS',
+  'NOT_READY',
   'INTERNAL_ERROR',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 
 /** One problem with one input field, e.g. {"field":"price","message":"must be at least 0"}. */
 export interface FieldIssue {
+  /** NOT_READY only: the portal whose rules the field breaks. */
+  portal?: string;
   field: string;
   message: string;
 }

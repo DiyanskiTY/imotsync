@@ -1,6 +1,6 @@
 {
   "name": "imotsync-api",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "ImotSync REST API: prepare a property once, publish it to several real estate portals.",
   "type": "module",
@@ -14,6 +14,9 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
+    "worker": "node dist/worker.js",
+    "dev:worker": "tsx watch src/worker.ts",
+    "worker:once": "tsx src/worker.ts --once",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -24,13 +27,15 @@
     "db:rollback": "tsx src/db/migrate.ts rollback",
     "db:status": "tsx src/db/migrate.ts status",
     "db:seed": "tsx src/db/seed.ts",
-    "db:reset": "tsx src/db/migrate.ts reset && tsx src/db/seed.ts"
+    "db:reset": "tsx src/db/migrate.ts reset && tsx src/db/seed.ts",
+    "geo:realistimo": "tsx src/portals/realistimo/download-geo.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.3.0",
     "express-rate-limit": "^8.7.4",
     "express-validator": "^7.3.2",
+    "fast-xml-parser": "^5.12.1",
     "helmet": "^8.3.0",
     "jose": "^6.2.17",
     "knex": "^3.3.0",

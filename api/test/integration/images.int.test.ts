@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
+import { collectUnusedPhotos } from '../../src/jobs/photo-gc.js';
 import { LocalFileStorage } from '../../src/lib/storage.js';
 import { createLogger } from '../../src/logger.js';
 import type { ErrorBody } from '../../src/middleware/error-handler.js';
@@ -462,7 +463,13 @@ describe('PUT /api/properties/:id/images/order', () => {
 });
 
 describe('DELETE /api/properties/:id/images/:imageId', () => {
-  it('deletes the photo row and its file', async () => {
+  /** The worker's photo sweep, as if two hours had passed (it keeps files for an hour). */
+  const sweepPhotos = () =>
+    collectUnusedPhotos(fx.db, new LocalFileStorage(fx.uploadDir), createLogger(fx.config), {
+      now: new Date(Date.now() + 2 * 3_600_000),
+    });
+
+  it('deletes the photo row; the worker deletes the file once nothing links to it', async () => {
     const property = await newProperty();
     const [first, second] = imagesOf(
       await upload(property.id, [
@@ -479,14 +486,53 @@ describe('DELETE /api/properties/:id/images/:imageId', () => {
 
     expect(res.status).toBe(204);
     expectDocumented(res, 'delete', '/properties/{id}/images/{imageId}');
-    expect(existsSync(file)).toBe(false);
     const detail = await getProperty(property.id);
     expect(detail.images.map((image) => image.id)).toEqual([second?.id]);
     expect(detail.coverImageUrl).toBe(second?.url);
     expect(detail.updatedAt > BACKDATED).toBe(true);
+    // A feed may still serve a stored entry that links to the photo (until an update job
+    // replaces it): the file stays until the worker's photo sweep finds nothing refers to it.
+    expect(existsSync(file)).toBe(true);
+    await sweepPhotos();
+    expect(existsSync(file)).toBe(false);
+    expect(existsSync(fileForUrl(fx, second?.url ?? ''))).toBe(true);
   });
 
-  it('deletes a seeded demo photo too', async () => {
+  it('keeps the file while a stored feed entry links to it, even if the update fails', async () => {
+    const property = await newProperty();
+    const [only] = imagesOf(
+      await upload(property.id, [{ data: await testImage(), name: 'a.jpg' }]),
+    );
+    const file = fileForUrl(fx, only?.url ?? '');
+    // A Bazar entry built before the deletion; deleting the only photo makes its update job
+    // fail validation, so this entry stays in the feed.
+    await fx.db('portal_listings').insert({
+      property_id: property.id,
+      portal: 'bazar',
+      status: 'published',
+      published_at: new Date(),
+      payload: JSON.stringify({ imageLink: `${fx.config.publicBaseUrl}${only?.url ?? ''}` }),
+      payload_updated_at: new Date(),
+    });
+
+    const res = await request(fx.app)
+      .delete(`/api/properties/${property.id}/images/${only?.id}`)
+      .set(auth);
+
+    expect(res.status).toBe(204);
+    await sweepPhotos();
+    expect(existsSync(file)).toBe(true);
+    await fx
+      .db('jobs')
+      .whereIn(
+        'portal_listing_id',
+        fx.db('portal_listings').select('id').where({ property_id: property.id }),
+      )
+      .delete();
+    await fx.db('portal_listings').where({ property_id: property.id }).delete();
+  });
+
+  it('deletes a seeded demo photo too (its file belongs to the demo seed)', async () => {
     const seeded = await fx.db('property_images').where('url', 'like', '/uploads/demo/%').first();
     if (!seeded) throw new Error('The demo seed has no photos');
     const file = fileForUrl(fx, seeded.url);
@@ -497,7 +543,11 @@ describe('DELETE /api/properties/:id/images/:imageId', () => {
       .set(auth);
 
     expect(res.status).toBe(204);
-    expect(existsSync(file)).toBe(false);
+    expect(await fx.db('property_images').where({ id: seeded.id })).toEqual([]);
+    // The photo sweep only looks at uploaded photos (UPLOAD_DIR/properties); the demo folder
+    // is replaced by the next seed.
+    await sweepPhotos();
+    expect(existsSync(file)).toBe(true);
   });
 
   it('answers 404 for a photo of another property, and keeps it', async () => {

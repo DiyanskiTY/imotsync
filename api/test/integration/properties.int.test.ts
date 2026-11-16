@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
+import { collectUnusedPhotos } from '../../src/jobs/photo-gc.js';
 import { LocalFileStorage } from '../../src/lib/storage.js';
 import { createLogger } from '../../src/logger.js';
 import type { ErrorBody } from '../../src/middleware/error-handler.js';
@@ -465,7 +466,9 @@ describe('DELETE /api/properties/:id', () => {
 
     expect(res.status).toBe(409);
     expectDocumented(res, 'delete', '/properties/{id}');
-    expect((res.body as ErrorBody).error.message).toMatch(/Remove it from the portals first/);
+    expect((res.body as ErrorBody).error.message).toMatch(
+      /Unpublish it first \(POST \/api\/properties\/\d+\/unpublish\), or use bulk delete/,
+    );
     expect((await request(fx.app).get(`/api/properties/${id}`).set(auth)).status).toBe(200);
   });
 
@@ -518,7 +521,7 @@ describe('DELETE /api/properties/:id', () => {
     expect(await fx.db('jobs').whereIn('portal_listing_id', listingIds)).toEqual([]);
   });
 
-  it('deletes a property, its rows and its photo files', async () => {
+  it('deletes a property and its rows (the demo photo files belong to the demo seed)', async () => {
     // IS-00008: archived, listings removed from both portals, two seeded photos.
     const id = seeded.find((p) => p.refCode === 'IS-00008')?.id ?? 0;
     const detail = (await request(fx.app).get(`/api/properties/${id}`).set(auth))
@@ -534,14 +537,13 @@ describe('DELETE /api/properties/:id', () => {
     expect(res.status).toBe(204);
     expect(res.text).toBe('');
     expectDocumented(res, 'delete', '/properties/{id}');
-    for (const file of files) expect(existsSync(file)).toBe(false);
     expect(await fx.db('property_images').where({ property_id: id })).toEqual([]);
     expect(await fx.db('portal_listings').where({ property_id: id })).toEqual([]);
     expect(await fx.db('jobs').whereIn('portal_listing_id', listingIds)).toEqual([]);
     expect((await request(fx.app).get(`/api/properties/${id}`).set(auth)).status).toBe(404);
   });
 
-  it('deletes uploaded photos and their folder', async () => {
+  it('leaves the uploaded photos to the worker, which deletes them and their folder', async () => {
     const property = (await create({ type: 'garage', dealType: 'rent', city: 'Ruse' }))
       .body as PropertyDetailDto;
     const upload = await request(fx.app)
@@ -555,6 +557,15 @@ describe('DELETE /api/properties/:id', () => {
     const res = await request(fx.app).delete(`/api/properties/${property.id}`).set(auth);
 
     expect(res.status).toBe(204);
+    // A stored feed entry may still link to the photos: the worker's photo sweep deletes the
+    // files once nothing refers to them, and never a file younger than an hour.
+    expect(existsSync(file)).toBe(true);
+    const logger = createLogger(fx.config);
+    await collectUnusedPhotos(fx.db, new LocalFileStorage(fx.uploadDir), logger);
+    expect(existsSync(file)).toBe(true);
+    await collectUnusedPhotos(fx.db, new LocalFileStorage(fx.uploadDir), logger, {
+      now: new Date(Date.now() + 2 * 3_600_000),
+    });
     expect(existsSync(file)).toBe(false);
     expect(existsSync(fileForUrl(fx, `/uploads/properties/${property.id}`))).toBe(false);
   });
@@ -569,7 +580,7 @@ describe('DELETE /api/properties/:id', () => {
 });
 
 describe('a file that cannot be deleted', () => {
-  it('is logged, while the photo and property deletes still answer 204', async () => {
+  it('is logged by the photo sweep, which goes on; the deletes answer 204 regardless', async () => {
     const local = new LocalFileStorage(fx.uploadDir);
     const busy = () => Promise.reject(new Error('EBUSY: resource busy or locked'));
     const storage = Object.assign(Object.create(local) as LocalFileStorage, {
@@ -594,21 +605,28 @@ describe('a file that cannot be deleted', () => {
 
     expect(photo.status).toBe(204);
     expect(await fx.db('property_images').where({ id: first?.id })).toEqual([]);
-    // The file stays behind as an orphan; nothing points at it any more.
-    expect(existsSync(fileForUrl(fx, first?.url ?? ''))).toBe(true);
 
     const property = await request(app).delete(`/api/properties/${id}`).set(auth);
 
     expect(property.status).toBe(204);
     expect(await fx.db('properties').where({ id })).toEqual([]);
     expect(await fx.db('property_images').where({ property_id: id })).toEqual([]);
+
+    const result = await collectUnusedPhotos(fx.db, storage, logger, {
+      now: new Date(Date.now() + 2 * 3_600_000),
+    });
+
+    expect(result.failed).toBeGreaterThanOrEqual(2);
+    // The files stay behind for the next sweep.
+    expect(existsSync(fileForUrl(fx, first?.url ?? ''))).toBe(true);
     expect(logError).toHaveBeenCalledWith(
       expect.objectContaining({ key: first?.url.replace(/^\/uploads\//, '') }),
-      'Could not delete a photo file',
+      'Could not delete an unused photo file',
     );
-    expect(logError).toHaveBeenCalledWith(
-      expect.objectContaining({ folder: `properties/${id}` }),
-      'Could not delete a photo folder',
-    );
+    // Nothing else depended on it: a sweep with working storage removes them.
+    await collectUnusedPhotos(fx.db, new LocalFileStorage(fx.uploadDir), logger, {
+      now: new Date(Date.now() + 2 * 3_600_000),
+    });
+    expect(existsSync(fileForUrl(fx, first?.url ?? ''))).toBe(false);
   });
 });

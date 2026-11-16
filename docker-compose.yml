@@ -1,9 +1,85 @@
 # ImotSync — local stack.
 #   docker compose up -d --wait db           # just the database (for running api/web locally)
-#   docker compose up -d --build --wait      # database + API container
+#   docker compose up -d --build --wait      # database + API + worker containers
+#   docker compose run --rm api node dist/db/seed.js   # load the demo data into that stack
 # Values come from the root .env file (copy .env.example). Defaults below match it.
 
 name: imotsync
+
+# Settings that both the API and the worker read (the same image and configuration code). The
+# secrets are not here: each service adds only the ones it uses, so the API never holds the
+# Realistimo API key and the worker, which talks to an external host, never holds the key that
+# signs login tokens.
+x-shared-environment: &shared-environment
+  NODE_ENV: production
+  UPLOAD_DIR: /app/uploads
+  # The root file system is read-only (below): fontconfig, which sharp uses for the text on the
+  # generated demo photos, keeps its cache in /tmp instead.
+  XDG_CACHE_HOME: /tmp/.cache
+  DB_HOST: db
+  DB_PORT: 3306
+  DB_NAME: ${DB_NAME:-imotsync}
+  DB_USER: ${DB_USER:-imotsync}
+  DB_PASSWORD: ${DB_PASSWORD:-imotsync_dev}
+  # Feed URLs and the photo URLs in the feeds start with PUBLIC_BASE_URL. The default reaches
+  # this machine only, which is enough to look at the feeds; a real portal needs the API's
+  # public HTTPS origin. The feed entries keep the photo URLs they were built with, so after a
+  # change publish the live properties again (README, Feeds).
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+  # With NODE_ENV=production the API and the worker refuse an http:// or local PUBLIC_BASE_URL.
+  # This stack is a local run of the production build, so it allows one by default. Never allow
+  # it on a server that portals reach: set it to false in .env to have the check apply here.
+  ALLOW_INSECURE_PUBLIC_BASE_URL: ${ALLOW_INSECURE_PUBLIC_BASE_URL:-true}
+  PUBLIC_LISTING_URL_TEMPLATE: ${PUBLIC_LISTING_URL_TEMPLATE:-}
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+  WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-1000}
+  JOB_TIMEOUT_SECONDS: ${JOB_TIMEOUT_SECONDS:-60}
+  JOB_LOCK_TIMEOUT_SECONDS: ${JOB_LOCK_TIMEOUT_SECONDS:-300}
+  RETRY_BASE_SECONDS: ${RETRY_BASE_SECONDS:-30}
+  RETRY_CAP_SECONDS: ${RETRY_CAP_SECONDS:-3600}
+  DEMO_PORTAL_FAILURE_RATE: ${DEMO_PORTAL_FAILURE_RATE:-0.3}
+  DEMO_PORTAL_LATENCY_MS: ${DEMO_PORTAL_LATENCY_MS:-400}
+  REALISTIMO_AGENCY_UID: ${REALISTIMO_AGENCY_UID:-imotsync-demo}
+  REALISTIMO_API_BASE_URL: ${REALISTIMO_API_BASE_URL:-https://realistimo.com}
+  REALISTIMO_SYNC_INTERVAL_SECONDS: ${REALISTIMO_SYNC_INTERVAL_SECONDS:-900}
+  BAZAR_REMOVED_RETENTION_DAYS: ${BAZAR_REMOVED_RETENTION_DAYS:-30}
+
+# Runs before every command of the api container (also `docker compose run`). JWT_SECRET and
+# FEED_TOKEN must be real secrets when NODE_ENV=production. An empty value, or a public dev-only
+# placeholder as in .env.example, is never used here: the container generates a random one at
+# each start instead, so login tokens do not survive a restart and the feed URLs change with
+# every restart of the API. Set your own values in .env to keep them stable.
+x-api-entrypoint: &api-entrypoint
+  - sh
+  - -c
+  - |
+    case "$${JWT_SECRET:-}" in
+      '' | dev-only*)
+        echo 'JWT_SECRET is empty or a public dev-only placeholder: using a random secret for this container start.' >&2
+        JWT_SECRET="$$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")"
+        export JWT_SECRET
+        ;;
+    esac
+    case "$${FEED_TOKEN:-}" in
+      '' | dev-only*)
+        echo 'FEED_TOKEN is empty or a public dev-only placeholder: using a random token for this container start (the feed URLs change with it).' >&2
+        FEED_TOKEN="$$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")"
+        export FEED_TOKEN
+        ;;
+    esac
+    exec "$$@"
+  - api-entrypoint
+
+# The API and the worker need no privileges: they run as the image's unprivileged user, write
+# only to the uploads volume (and /tmp) and listen on an unprivileged port.
+x-app-hardening: &app-hardening
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
 
 services:
   db:
@@ -36,40 +112,24 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    <<: *app-hardening
+    entrypoint: *api-entrypoint
     # Apply pending migrations, then start the HTTP server.
-    # A JWT_SECRET that is empty or still a public dev-only placeholder (as in .env.example) is
-    # never used here: the container generates a random one at each start instead, so tokens do
-    # not survive a restart. Set your own value in .env to keep them valid.
-    command:
-      - sh
-      - -c
-      - |
-        case "$${JWT_SECRET:-}" in
-          '' | dev-only*)
-            echo 'JWT_SECRET is empty or a public dev-only placeholder: using a random secret for this container start.' >&2
-            JWT_SECRET="$$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")"
-            export JWT_SECRET
-            ;;
-        esac
-        node dist/db/migrate.js latest && exec node dist/server.js
+    command: ['sh', '-c', 'node dist/db/migrate.js latest && exec node dist/server.js']
     environment:
-      NODE_ENV: production
+      <<: *shared-environment
       API_PORT: 3000
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4200}
       JWT_SECRET: ${JWT_SECRET:-}
       # Login token lifetime in seconds (60 to 2592000); 28800 = 8 hours, as in api/src/config.ts.
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-28800}
       # false = no reverse proxy. Behind one, set the number of proxies in front of the API
-      # (usually 1, only if port 3000 is reachable solely through them) or the proxies' addresses
-      # or subnets as this container sees them, comma-separated. Never true: with
-      # NODE_ENV=production the API refuses it and does not start. See README, Behind a reverse proxy.
+      # (usually 1, only if port 3000 is reachable solely through them) or the proxies'
+      # addresses or subnets as this container sees them, comma-separated. Never true: with
+      # NODE_ENV=production the API refuses it and does not start. See README, Behind a
+      # reverse proxy.
       TRUST_PROXY: ${TRUST_PROXY:-false}
-      UPLOAD_DIR: /app/uploads
-      DB_HOST: db
-      DB_PORT: 3306
-      DB_NAME: ${DB_NAME:-imotsync}
-      DB_USER: ${DB_USER:-imotsync}
-      DB_PASSWORD: ${DB_PASSWORD:-imotsync_dev}
+      FEED_TOKEN: ${FEED_TOKEN:-}
       # This stack is a demo with made-up data, so the seed script may run here.
       ALLOW_DEMO_SEED: 'true'
       SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-demo1234}
@@ -77,6 +137,35 @@ services:
       - '${API_PORT:-3000}:3000'
     volumes:
       - uploads:/app/uploads
+
+  # Processes the publishing jobs. Same image as the API and the same uploads volume (its hourly
+  # photo sweep deletes the files that no photo and no feed entry refers to any more). It starts
+  # once the API is healthy, so the API has applied the migrations.
+  worker:
+    build:
+      context: ./api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    <<: *app-hardening
+    # The worker signs no login tokens and serves no feeds: it never receives JWT_SECRET or
+    # FEED_TOKEN, and its configuration does not read them (loadConfig('worker')).
+    command: ['node', 'dist/worker.js']
+    environment:
+      <<: *shared-environment
+      # Empty = the Realistimo import sync stays off. Only the worker uses this key.
+      REALISTIMO_API_KEY: ${REALISTIMO_API_KEY:-}
+    volumes:
+      - uploads:/app/uploads
+    # The image's health check calls the API's /api/health; the worker serves no HTTP.
+    healthcheck:
+      disable: true
+    # On stop the worker finishes the jobs in flight, which may take up to JOB_TIMEOUT_SECONDS
+    # (60 by default); allow that before Docker kills it.
+    stop_grace_period: 90s
 
 volumes:
   db_data:

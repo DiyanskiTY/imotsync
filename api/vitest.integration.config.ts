@@ -8,6 +8,8 @@ export default defineConfig({
     include: ['test/**/*.int.test.ts'],
     globalSetup: ['test/integration/global-setup.ts'],
     env: { NODE_ENV: 'test' },
+    // No test may reach a host other than this machine (a real portal above all).
+    setupFiles: ['test/support/network-guard.ts'],
     // The files share one database, so they must not run at the same time.
     fileParallelism: false,
     testTimeout: 60_000,

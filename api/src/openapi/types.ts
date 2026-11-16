@@ -59,7 +59,15 @@ export interface Operation {
   responses: Record<string, Response | Reference>;
 }
 
-export type PathItem = Partial<Record<HttpMethod, Operation>>;
+export interface Server {
+  url: string;
+  description: string;
+}
+
+export type PathItem = Partial<Record<HttpMethod, Operation>> & {
+  /** Overrides the document's servers for this path (the feeds live outside /api). */
+  servers?: Server[];
+};
 
 export interface OpenApiDocument {
   openapi: '3.1.0';
@@ -69,7 +77,7 @@ export interface OpenApiDocument {
     description: string;
     license?: { name: string; identifier: string };
   };
-  servers: { url: string; description: string }[];
+  servers: Server[];
   tags: { name: string; description: string }[];
   security: SecurityRequirement[];
   paths: Record<string, PathItem>;

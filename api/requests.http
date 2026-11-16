@@ -12,6 +12,7 @@
 
 @host = http://localhost:3000
 @api = {{host}}/api
+@feedToken = dev-only-feed-token
 
 ### Health check (public)
 GET {{api}}/health
@@ -115,9 +116,50 @@ Content-Type: application/json
 DELETE {{api}}/properties/{{createProperty.response.body.$.id}}/images/{{photos.response.body.$.images[0].id}}
 Authorization: Bearer {{login.response.body.$.accessToken}}
 
-### Delete the property (409 while it is published or pending on a portal)
+### Delete the property (409 while it is published or pending on a portal; 202 deletion_scheduled while Bazar.bg still serves its removal)
 DELETE {{api}}/properties/{{createProperty.response.body.$.id}}
 Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Portals, with the feed URL of each feed portal
+GET {{api}}/portals
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Pre-publish check of a seeded property against every portal (changes nothing)
+GET {{api}}/properties/1/checks
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Publish it to Realistimo and the demo portal (422 NOT_READY lists what to fix first)
+# The worker carries the jobs out: npm run worker:once (or npm run dev:worker).
+POST {{api}}/properties/1/publish
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "portals": ["realistimo", "demo"]
+}
+
+### Job log of that property, newest first
+GET {{api}}/jobs?propertyId=1
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Failed jobs (retry one with POST {{api}}/jobs/<id>/retry)
+GET {{api}}/jobs?status=failed
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Take it off the demo portal
+POST {{api}}/properties/1/unpublish
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "portals": ["demo"]
+}
+
+### Realistimo feed (public, outside /api; feedToken is FEED_TOKEN from .env)
+GET {{host}}/feeds/realistimo/{{feedToken}}.xml
+
+### Bazar.bg feed (Google Merchant RSS); send If-None-Match with its ETag to get 304
+GET {{host}}/feeds/bazar/{{feedToken}}.xml
 
 ### OpenAPI document (public)
 GET {{api}}/openapi.json

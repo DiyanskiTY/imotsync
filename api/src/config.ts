@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { isIP } from 'node:net';
 import path from 'node:path';
@@ -21,6 +22,34 @@ const port = z.coerce.number().int().min(1).max(65_535);
 const origin = z
   .string()
   .regex(/^https?:\/\/[^/\s]+$/, 'must be an origin such as http://localhost:4200 (no path)');
+
+/** JOB_LOCK_TIMEOUT_SECONDS must exceed JOB_TIMEOUT_SECONDS by at least this much. */
+export const JOB_LOCK_MARGIN_SECONDS = 60;
+
+/** Host names that only reach the machine itself. */
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0']);
+
+/** Whether an origin (scheme://host[:port]) points at this machine only. */
+function isLoopbackOrigin(value: string): boolean {
+  const host = new URL(value).hostname.toLowerCase();
+  return LOOPBACK_HOSTS.has(host) || host.endsWith('.localhost') || host.startsWith('127.');
+}
+
+/** An integer environment variable within a range, with a default. */
+const intIn = (min: number, max: number, fallback: number) =>
+  z.coerce.number().int().min(min).max(max).default(fallback);
+
+/** FEED_TOKEN is a path segment of the public feed URLs, so it is limited to URL-safe characters. */
+const FEED_TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
+
+/** Public placeholder for FEED_TOKEN (like the JWT_SECRET one); refused when NODE_ENV=production. */
+export const DEFAULT_FEED_TOKEN = 'dev-only-feed-token';
+
+/** What PUBLIC_LISTING_URL_TEMPLATE replaces with the property's reference code. */
+export const REF_CODE_PLACEHOLDER = '{refCode}';
+
+/** An http(s) URL with a path, e.g. https://agency.example/properties/{refCode}. */
+const LISTING_URL_PATTERN = /^https?:\/\/[^/\s]+\/\S*$/;
 
 /** Default lifetime of a login token: 8 hours, one working day. */
 export const DEFAULT_JWT_TTL_SECONDS = 8 * 60 * 60;
@@ -102,9 +131,95 @@ const envSchema = z
     DB_PASSWORD: z.string({ error: 'is required' }),
     SEED_DEMO_PASSWORD: z.string().min(8).default('demo1234'),
     ALLOW_DEMO_SEED: z.stringbool().default(false),
+    // Lets NODE_ENV=production run with an http:// or local PUBLIC_BASE_URL: only for local
+    // runs of the production build (the Docker Compose stack, CI), never for a real server.
+    ALLOW_INSECURE_PUBLIC_BASE_URL: z.stringbool().default(false),
+
+    // --- Publishing ---
+    // The origin portals reach this server at: photo URLs in feeds are PUBLIC_BASE_URL + /uploads/...
+    PUBLIC_BASE_URL: origin.default('http://localhost:3000'),
+    // Secret path segment of the public feed URLs (/feeds/<portal>/<FEED_TOKEN>.xml).
+    FEED_TOKEN: z
+      .string()
+      .regex(FEED_TOKEN_PATTERN, 'must be 8 to 128 characters: letters, digits, "-" or "_"')
+      .default(DEFAULT_FEED_TOKEN),
+    WORKER_CONCURRENCY: intIn(1, 16, 2),
+    WORKER_POLL_INTERVAL_MS: intIn(100, 60_000, 1000),
+    // Time budget for one adapter call.
+    JOB_TIMEOUT_SECONDS: intIn(1, 3600, 60),
+    // A running job locked longer than this is considered abandoned (its worker crashed).
+    JOB_LOCK_TIMEOUT_SECONDS: intIn(2, 86_400, 300),
+    RETRY_BASE_SECONDS: intIn(1, 86_400, 30),
+    RETRY_CAP_SECONDS: intIn(1, 7 * 86_400, 3600),
+    DEMO_PORTAL_FAILURE_RATE: z.coerce.number().min(0).max(1).default(0.3),
+    DEMO_PORTAL_LATENCY_MS: intIn(0, 60_000, 400),
+    REALISTIMO_AGENCY_UID: z
+      .string()
+      .trim()
+      .min(1, 'must not be empty')
+      .max(100)
+      .default('imotsync-demo'),
+    // Empty: the optional Realistimo REST sync (import trigger and import log) is off.
+    REALISTIMO_API_KEY: z.string().trim().default(''),
+    REALISTIMO_API_BASE_URL: origin.default('https://realistimo.com'),
+    REALISTIMO_SYNC_INTERVAL_SECONDS: intIn(60, 86_400, 900),
+    // How long a removed listing stays in the Bazar feed, marked out of stock.
+    BAZAR_REMOVED_RETENTION_DAYS: intIn(1, 365, 30),
+    // Optional public page of a listing, e.g. https://agency.example/properties/{refCode}.
+    PUBLIC_LISTING_URL_TEMPLATE: z
+      .string()
+      .trim()
+      .default('')
+      .refine(
+        (value) =>
+          value === '' || (LISTING_URL_PATTERN.test(value) && value.includes(REF_CODE_PLACEHOLDER)),
+        `must be empty or an http(s) URL that contains ${REF_CODE_PLACEHOLDER}`,
+      ),
   })
   .superRefine((env, ctx) => {
+    if (env.RETRY_CAP_SECONDS < env.RETRY_BASE_SECONDS) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['RETRY_CAP_SECONDS'],
+        message: `must not be less than RETRY_BASE_SECONDS (${env.RETRY_BASE_SECONDS})`,
+      });
+    }
+    // Otherwise the stale-lock sweep could hand a job that is still running to a second
+    // worker: a job holds its lock for the adapter call (JOB_TIMEOUT_SECONDS) plus the time
+    // to load the property, record the outcome (lock waits, retried transactions) and, on a
+    // stop, the grace period.
+    if (env.JOB_LOCK_TIMEOUT_SECONDS < env.JOB_TIMEOUT_SECONDS + JOB_LOCK_MARGIN_SECONDS) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['JOB_LOCK_TIMEOUT_SECONDS'],
+        message: `must be at least JOB_TIMEOUT_SECONDS + ${JOB_LOCK_MARGIN_SECONDS} (${
+          env.JOB_TIMEOUT_SECONDS + JOB_LOCK_MARGIN_SECONDS
+        })`,
+      });
+    }
+
     if (env.NODE_ENV !== 'production') return;
+    // Portals download the feeds and the photos from PUBLIC_BASE_URL: it must be a public
+    // HTTPS origin (the feed URL carries FEED_TOKEN, and Realistimo requires HTTPS).
+    if (
+      !env.ALLOW_INSECURE_PUBLIC_BASE_URL &&
+      (!env.PUBLIC_BASE_URL.startsWith('https://') || isLoopbackOrigin(env.PUBLIC_BASE_URL))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['PUBLIC_BASE_URL'],
+        message:
+          'must be the public https:// origin of the API when NODE_ENV=production (not http://, localhost or 127.0.0.1); for a local run of the production build only, set ALLOW_INSECURE_PUBLIC_BASE_URL=true',
+      });
+    }
+    // The API key goes in a request header: never in clear text.
+    if (!env.REALISTIMO_API_BASE_URL.startsWith('https://')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['REALISTIMO_API_BASE_URL'],
+        message: 'must be an https:// origin when NODE_ENV=production',
+      });
+    }
     if (env.JWT_SECRET.length < MIN_PRODUCTION_SECRET_LENGTH) {
       ctx.addIssue({
         code: 'custom',
@@ -117,6 +232,21 @@ const envSchema = z
       ctx.addIssue({
         code: 'custom',
         path: ['JWT_SECRET'],
+        message: `is the public '${PUBLIC_SECRET_PREFIX}...' placeholder; generate a real one with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`,
+      });
+    }
+    // The feeds are public URLs: whoever knows the token can read every listing in them.
+    if (env.FEED_TOKEN.length < MIN_PRODUCTION_SECRET_LENGTH) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['FEED_TOKEN'],
+        message: `must be at least ${MIN_PRODUCTION_SECRET_LENGTH} characters when NODE_ENV=production`,
+      });
+    }
+    if (env.FEED_TOKEN.startsWith(PUBLIC_SECRET_PREFIX)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['FEED_TOKEN'],
         message: `is the public '${PUBLIC_SECRET_PREFIX}...' placeholder; generate a real one with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`,
       });
     }
@@ -142,6 +272,49 @@ export interface DbConfig {
   password: string;
 }
 
+export interface WorkerConfig {
+  /** Jobs one worker process runs at the same time (WORKER_CONCURRENCY). */
+  concurrency: number;
+  /** Pause between polls while no job is due (WORKER_POLL_INTERVAL_MS). */
+  pollIntervalMs: number;
+  /** Time budget for one adapter call (JOB_TIMEOUT_SECONDS). */
+  jobTimeoutSeconds: number;
+  /** A job running longer than this is abandoned and swept (JOB_LOCK_TIMEOUT_SECONDS). */
+  lockTimeoutSeconds: number;
+}
+
+export interface RetryConfig {
+  /** Delay before the second attempt, before jitter (RETRY_BASE_SECONDS). */
+  baseSeconds: number;
+  /** Longest delay between two attempts, before jitter (RETRY_CAP_SECONDS). */
+  capSeconds: number;
+}
+
+export interface PortalsConfig {
+  /** PUBLIC_LISTING_URL_TEMPLATE, or null; '{refCode}' stands for the reference code. */
+  publicListingUrlTemplate: string | null;
+  demo: {
+    /** Share of calls the demo portal fails, 0 to 1 (DEMO_PORTAL_FAILURE_RATE). */
+    failureRate: number;
+    /** Simulated response time of the demo portal (DEMO_PORTAL_LATENCY_MS). */
+    latencyMs: number;
+  };
+  realistimo: {
+    /** The agency's identifier in the feed (REALISTIMO_AGENCY_UID). */
+    agencyUid: string;
+    /** REALISTIMO_API_KEY, or null when it is empty, which turns the REST sync off. */
+    apiKey: string | null;
+    /** REALISTIMO_API_BASE_URL, an origin without a trailing slash. */
+    apiBaseUrl: string;
+    /** How often the worker runs the REST sync (REALISTIMO_SYNC_INTERVAL_SECONDS). */
+    syncIntervalSeconds: number;
+  };
+  bazar: {
+    /** Days a removed listing stays in the feed as out of stock (BAZAR_REMOVED_RETENTION_DAYS). */
+    removedRetentionDays: number;
+  };
+}
+
 export interface Config {
   nodeEnv: NodeEnv;
   isProduction: boolean;
@@ -160,15 +333,39 @@ export interface Config {
     /** ALLOW_DEMO_SEED: lets the demo seed (and reset) run when NODE_ENV=production. */
     allowInProduction: boolean;
   };
+  /** PUBLIC_BASE_URL: the origin portals reach this server at, without a trailing slash. */
+  publicBaseUrl: string;
+  feeds: {
+    /** FEED_TOKEN: the secret path segment of /feeds/<portal>/<token>.xml. */
+    token: string;
+  };
+  worker: WorkerConfig;
+  retry: RetryConfig;
+  portals: PortalsConfig;
 }
 
 export class ConfigError extends Error {
   override readonly name = 'ConfigError';
 }
 
+/**
+ * Which process reads the configuration. The worker signs no login tokens and serves no
+ * feeds, so it neither needs nor reads JWT_SECRET and FEED_TOKEN: its config gets random
+ * values of its own that nothing uses, and it starts without the real secrets.
+ */
+export type ConfigRole = 'api' | 'worker';
+
+/** A value that passes the production checks and is known to nobody. */
+const unusedSecret = () => `unused-${randomBytes(32).toString('hex')}`;
+
 /** Validates environment variables and maps them to a typed config. Pure: no I/O. */
-export function parseConfig(env: Record<string, string | undefined>): Config {
-  const result = envSchema.safeParse(env);
+export function parseConfig(
+  env: Record<string, string | undefined>,
+  role: ConfigRole = 'api',
+): Config {
+  const input =
+    role === 'worker' ? { ...env, JWT_SECRET: unusedSecret(), FEED_TOKEN: unusedSecret() } : env;
+  const result = envSchema.safeParse(input);
   if (!result.success) {
     throw new ConfigError(`Invalid environment configuration:\n${z.prettifyError(result.error)}`);
   }
@@ -193,6 +390,26 @@ export function parseConfig(env: Record<string, string | undefined>): Config {
       demoPassword: e.SEED_DEMO_PASSWORD,
       allowInProduction: e.ALLOW_DEMO_SEED,
     },
+    publicBaseUrl: e.PUBLIC_BASE_URL,
+    feeds: { token: e.FEED_TOKEN },
+    worker: {
+      concurrency: e.WORKER_CONCURRENCY,
+      pollIntervalMs: e.WORKER_POLL_INTERVAL_MS,
+      jobTimeoutSeconds: e.JOB_TIMEOUT_SECONDS,
+      lockTimeoutSeconds: e.JOB_LOCK_TIMEOUT_SECONDS,
+    },
+    retry: { baseSeconds: e.RETRY_BASE_SECONDS, capSeconds: e.RETRY_CAP_SECONDS },
+    portals: {
+      publicListingUrlTemplate: e.PUBLIC_LISTING_URL_TEMPLATE || null,
+      demo: { failureRate: e.DEMO_PORTAL_FAILURE_RATE, latencyMs: e.DEMO_PORTAL_LATENCY_MS },
+      realistimo: {
+        agencyUid: e.REALISTIMO_AGENCY_UID,
+        apiKey: e.REALISTIMO_API_KEY || null,
+        apiBaseUrl: e.REALISTIMO_API_BASE_URL,
+        syncIntervalSeconds: e.REALISTIMO_SYNC_INTERVAL_SECONDS,
+      },
+      bazar: { removedRetentionDays: e.BAZAR_REMOVED_RETENTION_DAYS },
+    },
   };
 }
 
@@ -207,7 +424,7 @@ export function loadRootEnvFile(file: string = ROOT_ENV_FILE): void {
 }
 
 /** Reads the root .env file (if any) and returns the validated config. */
-export function loadConfig(): Config {
+export function loadConfig(role: ConfigRole = 'api'): Config {
   loadRootEnvFile();
-  return parseConfig(process.env);
+  return parseConfig(process.env, role);
 }

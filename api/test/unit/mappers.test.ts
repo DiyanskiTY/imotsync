@@ -29,6 +29,7 @@ const property: PropertyWithCreatorRow = {
   total_floors: 6,
   description: 'Описание',
   status: 'active',
+  delete_requested_at: null,
   created_by: 2,
   creator_name: 'Demo Broker',
   created_at: at('2026-10-01T08:00:00Z'),
@@ -54,6 +55,9 @@ const listing: PortalListingRow = {
   status: 'published',
   last_error: null,
   published_at: at('2026-10-03T10:00:00Z'),
+  payload: null,
+  payload_updated_at: null,
+  removed_at: null,
   created_at: at('2026-10-03T09:00:00Z'),
   updated_at: at('2026-10-03T10:00:00Z'),
 };

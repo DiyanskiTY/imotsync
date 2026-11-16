@@ -87,15 +87,36 @@ export function expectSchema(value: unknown, schemaName: string): void {
   expect(valid ? [] : validate.errors, `value does not match ${schemaName}`).toEqual([]);
 }
 
+/**
+ * The URL path an operation is served at: the path's own server (the feeds live outside
+ * /api) or the document's server, followed by the documented path.
+ */
+export function servedPath(path: string): string {
+  const server = openApiDocument.paths[path]?.servers?.[0] ?? openApiDocument.servers[0];
+  return `${(server?.url ?? '').replace(/\/+$/, '')}${path}`;
+}
+
 /** Fails the test unless the response is documented for the operation and matches it. */
 export function expectDocumented(res: CheckedResponse, method: HttpMethod, path: string): void {
   const { response, pointer } = documentedResponse(method, path, res.status);
-  const content = response.content?.['application/json'];
-  if (!content) {
-    expect(res.text ?? '', `${method.toUpperCase()} ${path} ${res.status} has no body`).toBe('');
+  const label = `${method.toUpperCase()} ${path} ${res.status}`;
+  const mediaTypes = Object.keys(response.content ?? {});
+  if (mediaTypes.length === 0) {
+    expect(res.text ?? '', `${label} has no body`).toBe('');
     return;
   }
-  expect(res.headers['content-type']).toMatch(/^application\/json/);
+  const contentType = String(res.headers['content-type'] ?? '');
+  const mediaType = mediaTypes.find((type) => contentType.startsWith(type));
+  if (mediaType === undefined) {
+    throw new Error(`${label}: Content-Type "${contentType}" is not documented`);
+  }
+  if (mediaType !== 'application/json') {
+    // Text bodies (XML, plain text) are checked as the string they are.
+    const validateText = validatorFor(`${pointer}/content/${segment(mediaType)}/schema`);
+    const validText = validateText(res.text ?? '');
+    expect(validText ? [] : validateText.errors, `${label} body does not match`).toEqual([]);
+    return;
+  }
   const validate = validatorFor(`${pointer}/content/${segment('application/json')}/schema`);
   const valid = validate(res.body);
   expect(

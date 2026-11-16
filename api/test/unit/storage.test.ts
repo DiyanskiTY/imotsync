@@ -55,6 +55,22 @@ describe('LocalFileStorage', () => {
     expect(existsSync(path.join(root, 'properties', '8', 'c.jpg'))).toBe(true);
   });
 
+  it('lists the files under a folder with their modification time', async () => {
+    await storage.save('properties/7/a.jpg', Buffer.from('a'));
+    await storage.save('properties/8/sub/c.jpg', Buffer.from('c'));
+    await storage.save('demo/d.jpg', Buffer.from('d'));
+    await writeFile(path.join(root, 'properties', '7', '.hidden'), 'x');
+
+    const files = await storage.list('properties');
+
+    expect(files.map((file) => file.key)).toEqual(['properties/7/a.jpg', 'properties/8/sub/c.jpg']);
+    for (const file of files) {
+      expect(Math.abs(file.modifiedAt.getTime() - Date.now())).toBeLessThan(60_000);
+    }
+    expect(await storage.list('nothing-here')).toEqual([]);
+    await expect(storage.list('../outside')).rejects.toThrow(StorageKeyError);
+  });
+
   it('maps keys to /uploads URLs and back', () => {
     expect(storage.publicUrl('properties/12/x.jpg')).toBe('/uploads/properties/12/x.jpg');
     expect(storage.keyFromUrl('/uploads/properties/12/x.jpg')).toBe('properties/12/x.jpg');

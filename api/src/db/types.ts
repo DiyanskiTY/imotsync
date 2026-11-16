@@ -1,9 +1,12 @@
 import type { Knex } from 'knex';
 
 /*
- * Row types for the five tables, exactly as the mysql2 driver returns them:
- * DATETIME -> Date (UTC), DECIMAL -> number, nullable columns -> T | null.
+ * Row types for the application tables, exactly as the mysql2 driver returns them:
+ * DATETIME -> Date (UTC), DECIMAL -> number, JSON -> parsed value, nullable columns -> T | null.
  */
+
+/** A JSON object column. MariaDB 11 reports JSON columns as such, so mysql2 parses them. */
+export type JsonObject = Record<string, unknown>;
 
 export const USER_ROLES = ['admin', 'broker'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
@@ -71,6 +74,8 @@ export interface PropertyRow {
   total_floors: number | null;
   description: string | null;
   status: PropertyStatus;
+  /** Set by bulk delete; the worker deletes the property once every portal removed it. */
+  delete_requested_at: Date | null;
   created_by: number | null;
   created_at: Date;
   updated_at: Date;
@@ -94,7 +99,30 @@ export interface PortalListingRow {
   external_id: string | null;
   status: PortalListingStatus;
   last_error: string | null;
+  /** When the listing was first published successfully. */
   published_at: Date | null;
+  /** Feed portals: what the feed serves for this listing (portal-specific), or null. */
+  payload: JsonObject | null;
+  payload_updated_at: Date | null;
+  /** When the last successful remove went through; null once published again. */
+  removed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/** Per-portal state that is not about one listing (e.g. the Realistimo import trigger). */
+export interface PortalSyncStateRow {
+  portal: string;
+  last_triggered_at: Date | null;
+  last_trigger_message: string | null;
+  last_log_date: Date | null;
+  last_result: JsonObject | null;
+  /**
+   * The newest feed change of listings that were deleted together with their property (their
+   * payload_updated_at), which no listing row records any more. Keeps feed dates such as
+   * Realistimo's <updated> from falling back.
+   */
+  feed_changed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -141,6 +169,7 @@ export type NewProperty = Optional<
   | 'total_floors'
   | 'description'
   | 'status'
+  | 'delete_requested_at'
   | 'created_by'
   | 'created_at'
   | 'updated_at'
@@ -152,9 +181,33 @@ export type NewPropertyImage = Optional<
 >;
 
 export type NewPortalListing = Optional<
-  PortalListingRow,
-  'id' | 'external_id' | 'status' | 'last_error' | 'published_at' | 'created_at' | 'updated_at'
->;
+  Omit<PortalListingRow, 'payload'>,
+  | 'id'
+  | 'external_id'
+  | 'status'
+  | 'last_error'
+  | 'published_at'
+  | 'payload_updated_at'
+  | 'removed_at'
+  | 'created_at'
+  | 'updated_at'
+> & {
+  /** JSON text (JSON.stringify), as for jobs.result. */
+  payload?: string | null;
+};
+
+export type NewPortalSyncState = Optional<
+  Omit<PortalSyncStateRow, 'last_result'>,
+  | 'last_triggered_at'
+  | 'last_trigger_message'
+  | 'last_log_date'
+  | 'feed_changed_at'
+  | 'created_at'
+  | 'updated_at'
+> & {
+  /** JSON text (JSON.stringify). */
+  last_result?: string | null;
+};
 
 export type NewJob = Optional<
   Omit<JobRow, 'result'>,
@@ -193,8 +246,13 @@ declare module 'knex/types/tables.js' {
     portal_listings: Knex.CompositeTableType<
       PortalListingRow,
       NewPortalListing,
-      Partial<NewPortalListing>
+      UpdateWithRaw<NewPortalListing>
     >;
-    jobs: Knex.CompositeTableType<JobRow, NewJob, Partial<NewJob>>;
+    jobs: Knex.CompositeTableType<JobRow, NewJob, UpdateWithRaw<NewJob>>;
+    portal_sync_state: Knex.CompositeTableType<
+      PortalSyncStateRow,
+      NewPortalSyncState,
+      UpdateWithRaw<NewPortalSyncState>
+    >;
   }
 }

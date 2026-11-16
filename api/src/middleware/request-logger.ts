@@ -16,6 +16,19 @@ interface LoggedResponse {
   statusCode: number;
 }
 
+/**
+ * The feed URLs carry FEED_TOKEN as their last segment (/feeds/<portal>/<token>.xml), and
+ * whoever knows it can read the feeds: it never reaches a log line. Also for a request
+ * target in absolute form (GET http://host/feeds/... HTTP/1.1), which Express routes by its
+ * path while req.originalUrl keeps the scheme and host.
+ */
+export function redactFeedToken(url: string): string {
+  return url.replace(
+    /^((?:[a-z][a-z0-9+.-]*:\/\/[^/?#]*)?\/+feeds\/+[^/?#]+\/+)[^/?#]+?(\.xml)?(?=[/?#]|$)/i,
+    '$1***$2',
+  );
+}
+
 /** One log line per request, with a request id that is also returned as X-Request-Id. */
 export function createRequestLogger(logger: Logger): HttpLogger {
   return pinoHttp({
@@ -33,7 +46,7 @@ export function createRequestLogger(logger: Logger): HttpLogger {
       req: ({ id, method, url, remoteAddress }: LoggedRequest): LoggedRequest => ({
         id,
         method,
-        url,
+        url: redactFeedToken(url),
         remoteAddress,
       }),
       res: ({ statusCode }: LoggedResponse): LoggedResponse => ({ statusCode }),

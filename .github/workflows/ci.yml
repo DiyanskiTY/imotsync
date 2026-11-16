@@ -85,7 +85,11 @@ jobs:
       - name: Smoke-test the compiled build (MariaDB service)
         env:
           NODE_ENV: production
+          # A local run of the production build: PUBLIC_BASE_URL stays http://localhost:3000.
+          ALLOW_INSECURE_PUBLIC_BASE_URL: 'true'
           ALLOW_DEMO_SEED: 'true'
+          # CI-only value, like JWT_SECRET above; production mode requires a real-looking token.
+          FEED_TOKEN: ci-only-feed-token-not-used-anywhere-else-0123456789
         run: |
           node dist/db/migrate.js latest
           status="$(node dist/db/migrate.js status)"
@@ -107,6 +111,39 @@ jobs:
             cat "$server_log"
             exit 1
           fi
+
+      # Runs the compiled worker the way the Compose 'worker' service does, for a single pass over
+      # the jobs the seed above queued, with the real adapters, so a broken adapter, a seeded job
+      # that cannot be processed or a broken import in dist/ fails here. The demo portal's
+      # failures are turned off to make the pass deterministic: every job the pass claims must
+      # succeed (the 'Worker stopped' log line counts them).
+      - name: Run the compiled worker once (MariaDB service)
+        env:
+          NODE_ENV: production
+          ALLOW_INSECURE_PUBLIC_BASE_URL: 'true'
+          DEMO_PORTAL_FAILURE_RATE: '0'
+        run: |
+          worker_log="$RUNNER_TEMP/worker.log"
+          exit_code=0
+          timeout 180 node dist/worker.js --once > "$worker_log" 2>&1 || exit_code=$?
+          cat "$worker_log"
+          echo "Worker exit code: $exit_code"
+          test "$exit_code" -eq 0
+          node -e '
+            const lines = require("node:fs").readFileSync(process.argv[1], "utf8").split("\n");
+            const entries = lines.flatMap((line) => {
+              try {
+                return [JSON.parse(line)];
+              } catch {
+                return [];
+              }
+            });
+            const stopped = entries.find((entry) => entry.msg === "Worker stopped");
+            if (!stopped) throw new Error("The worker log has no \"Worker stopped\" line");
+            const { claimed, succeeded, retrying, failed, lost } = stopped;
+            console.log({ claimed, succeeded, retrying, failed, lost });
+            if (claimed === 0 || succeeded !== claimed) process.exit(1);
+          ' "$worker_log"
 
       - name: Integration tests (MariaDB service)
         run: npm run test:integration

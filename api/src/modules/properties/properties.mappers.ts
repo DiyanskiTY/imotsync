@@ -105,7 +105,7 @@ function toPortalStatus(row: PortalListingRow): PortalStatusDto {
   };
 }
 
-function toPortalListing(row: PortalListingRow): PortalListingDto {
+export function toPortalListing(row: PortalListingRow): PortalListingDto {
   return {
     id: row.id,
     portal: row.portal,

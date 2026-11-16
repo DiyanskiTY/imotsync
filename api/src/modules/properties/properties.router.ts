@@ -56,7 +56,12 @@ export function createPropertiesRouter({ properties }: { properties: PropertiesS
   );
 
   router.delete('/properties/:id', validateParams(idParam('id')), async (req, res) => {
-    await properties.remove(intParam(req, 'id'));
+    const removal = await properties.remove(intParam(req, 'id'));
+    if (removal === 'deletion_scheduled') {
+      // Archived: the worker deletes it once its removal has been served long enough.
+      res.status(202).json({ data: { result: removal } });
+      return;
+    }
     res.status(204).end();
   });
 

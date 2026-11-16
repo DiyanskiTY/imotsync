@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 /**
@@ -14,10 +14,19 @@ export interface FileStorage {
   delete(key: string): Promise<void>;
   /** Removes everything under a folder key such as "properties/12". */
   deletePrefix(prefix: string): Promise<void>;
+  /** Every file under a folder key such as "properties" (none when it does not exist). */
+  list(prefix: string): Promise<StoredFileInfo[]>;
   /** The URL clients and portals download the file from. */
   publicUrl(key: string): string;
   /** The key behind a URL that publicUrl() produced, or null for any other URL. */
   keyFromUrl(url: string): string | null;
+}
+
+/** One stored file, as list() reports it. */
+export interface StoredFileInfo {
+  key: string;
+  /** Last modification time of the file (when it was saved: files are never rewritten). */
+  modifiedAt: Date;
 }
 
 export class StorageKeyError extends Error {
@@ -74,6 +83,32 @@ export class LocalFileStorage implements FileStorage {
 
   async deletePrefix(prefix: string): Promise<void> {
     await rm(this.resolve(prefix), { recursive: true, force: true });
+  }
+
+  async list(prefix: string): Promise<StoredFileInfo[]> {
+    const folder = this.resolve(prefix);
+    let entries;
+    try {
+      entries = await readdir(folder, { recursive: true, withFileTypes: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw error;
+    }
+    const files: StoredFileInfo[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const file = path.join(entry.parentPath, entry.name);
+      const key = path.relative(this.root, file).split(path.sep).join('/');
+      // Only what save() could have written (no hidden or oddly named files).
+      if (!KEY_PATTERN.test(key)) continue;
+      try {
+        files.push({ key, modifiedAt: (await stat(file)).mtime });
+      } catch (error) {
+        // Deleted in the meantime.
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    }
+    return files.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   }
 
   publicUrl(key: string): string {
