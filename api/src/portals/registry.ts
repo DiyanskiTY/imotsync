@@ -21,7 +21,9 @@ export interface PortalRegistration {
   /**
    * Feed portals: how long, in days, the feed still serves a removed listing (0 or left out:
    * not at all). A property is not deleted while one of its removed listings is still served
-   * (the listing row holds what the feed serves); see src/jobs/property-deletion.ts.
+   * (the listing row holds what the feed serves); see src/jobs/property-deletion.ts. The feed
+   * renderer must serve removals by the same period, with isRemovalStillServed
+   * (removal-retention.ts).
    */
   removedRetentionDays?: number;
 }
@@ -77,17 +79,22 @@ export const PORTAL_FACTORIES: readonly PortalFactory[] = [
       removedRetentionDays: 0,
     };
   },
-  (config) => ({
-    adapter: createBazarAdapter({
-      listingUrlTemplate: config.portals.publicListingUrlTemplate,
-      placeNames: placeNamesFrom(geoResolver()),
-    }),
-    feedRenderer: createBazarFeedRenderer({
-      publicBaseUrl: config.publicBaseUrl,
-      removedRetentionDays: config.portals.bazar.removedRetentionDays,
-    }),
-    removedRetentionDays: config.portals.bazar.removedRetentionDays,
-  }),
+  (config) => {
+    // Declared once: the feed renderer serves a removed item for this long, and the deletion
+    // rules (registry.removedRetentionDays) wait for the same period.
+    const removedRetentionDays = config.portals.bazar.removedRetentionDays;
+    return {
+      adapter: createBazarAdapter({
+        listingUrlTemplate: config.portals.publicListingUrlTemplate,
+        placeNames: placeNamesFrom(geoResolver()),
+      }),
+      feedRenderer: createBazarFeedRenderer({
+        publicBaseUrl: config.publicBaseUrl,
+        removedRetentionDays,
+      }),
+      removedRetentionDays,
+    };
+  },
   (config) => ({
     adapter: createDemoAdapter({
       failureRate: config.portals.demo.failureRate,

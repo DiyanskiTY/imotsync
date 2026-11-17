@@ -1,4 +1,5 @@
 import { XMLBuilder } from 'fast-xml-parser';
+import { isRemovalStillServed, removalServedUntil } from '../removal-retention.js';
 import type { FeedItem, FeedRenderContext, FeedRenderer } from '../types.js';
 import { readBazarPayload, type BazarItemPayload } from './payload.js';
 import { xmlSafe } from './text.js';
@@ -7,8 +8,6 @@ import { xmlSafe } from './text.js';
 export const GOOGLE_MERCHANT_NAMESPACE = 'http://base.google.com/ns/1.0';
 
 export const BAZAR_FEED_CONTENT_TYPE = 'application/xml; charset=utf-8';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface BazarFeedRendererOptions {
   /** PUBLIC_BASE_URL; the channel <link>. The render context's publicBaseUrl wins if set. */
@@ -76,12 +75,12 @@ export function createBazarFeedRenderer(options: BazarFeedRendererOptions): Feed
     contentType: BAZAR_FEED_CONTENT_TYPE,
 
     render(items: FeedItem[], ctx: FeedRenderContext): string {
-      const keepRemovedSince = ctx.now.getTime() - removedRetentionDays * DAY_MS;
       const served = items
         .filter(
           (item) =>
             item.status === 'published' ||
-            (item.status === 'removed' && item.payloadUpdatedAt.getTime() >= keepRemovedSince),
+            (item.status === 'removed' &&
+              isRemovalStillServed(item.payloadUpdatedAt, removedRetentionDays, ctx.now)),
         )
         .flatMap((item) => {
           const payload = readBazarPayload(item.payload);
@@ -121,13 +120,15 @@ export function createBazarFeedRenderer(options: BazarFeedRendererOptions): Feed
      * the feed when its retention period ended (which happens at any time of day).
      */
     lastModified(items: FeedItem[], ctx: FeedRenderContext): Date | null {
-      const retentionMs = removedRetentionDays * DAY_MS;
       let latest = ctx.lastChangedAt?.getTime() ?? Number.NEGATIVE_INFINITY;
       for (const item of items) {
         latest = Math.max(latest, item.payloadUpdatedAt.getTime());
-        const droppedAt = item.payloadUpdatedAt.getTime() + retentionMs;
-        if (item.status === 'removed' && droppedAt < ctx.now.getTime()) {
-          latest = Math.max(latest, droppedAt);
+        if (
+          item.status === 'removed' &&
+          !isRemovalStillServed(item.payloadUpdatedAt, removedRetentionDays, ctx.now)
+        ) {
+          const droppedAt = removalServedUntil(item.payloadUpdatedAt, removedRetentionDays);
+          latest = Math.max(latest, droppedAt.getTime());
         }
       }
       return Number.isFinite(latest) ? new Date(latest) : null;

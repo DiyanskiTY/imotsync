@@ -7,6 +7,7 @@ export {
   createRealistimoAdapter,
   REALISTIMO_DISPLAY_NAME,
   REALISTIMO_KEY,
+  realistimoFeedSpec,
   validateForRealistimo,
   type RealistimoAdapterOptions,
 } from './adapter.js';

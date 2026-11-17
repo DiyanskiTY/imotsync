@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEAL_TYPES, PROPERTY_TYPES } from '../../../../src/db/types.js';
-import { createBazarAdapter } from '../../../../src/portals/bazar/adapter.js';
+import { bazarFeedSpec, createBazarAdapter } from '../../../../src/portals/bazar/adapter.js';
 import { toBulgarianCityName } from '../../../../src/portals/bazar/cities.js';
 import {
   bazarProductType,
@@ -18,13 +18,19 @@ import { BASE_URL, adapterContext, listingInfo, photo, readyProperty } from './f
 
 const TEMPLATE = 'https://agency.example/properties/{refCode}';
 
-async function publishedPayload(
+const NOW = new Date('2026-11-16T09:00:00Z');
+
+/** The payload the spec builds for a ready property (what publish stores). */
+function publishedPayload(
   overrides: Parameters<typeof readyProperty>[0] = {},
   listingUrlTemplate?: string | null,
-): Promise<BazarItemPayload> {
-  const adapter = createBazarAdapter({ listingUrlTemplate });
-  const outcome = await adapter.publish(readyProperty(overrides), listingInfo(), adapterContext());
-  return bazarItemPayloadSchema.parse(outcome.payload);
+): BazarItemPayload {
+  const { payload } = bazarFeedSpec({ listingUrlTemplate }).buildPayload(
+    readyProperty(overrides),
+    null,
+    NOW,
+  );
+  return bazarItemPayloadSchema.parse(payload);
 }
 
 describe('createBazarAdapter', () => {
@@ -85,6 +91,7 @@ describe('createBazarAdapter', () => {
         retryable: false,
         message:
           'Validation failed: title: Bazar needs a title.; price: Bazar requires a concrete price in euro.',
+        options: { code: 'VALIDATION' },
       });
     });
 
@@ -119,7 +126,7 @@ describe('createBazarAdapter', () => {
 
   describe('remove', () => {
     it('keeps the previous item, marked out of stock, so Bazar archives the listing', async () => {
-      const previous = await publishedPayload({}, TEMPLATE);
+      const previous = publishedPayload({}, TEMPLATE);
       const adapter = createBazarAdapter({ listingUrlTemplate: TEMPLATE });
       const outcome = await adapter.remove(
         listingInfo({ status: 'published', payload: previous }),
@@ -137,7 +144,7 @@ describe('createBazarAdapter', () => {
     });
 
     it('keeps the data Bazar last received, not later edits', async () => {
-      const previous = await publishedPayload();
+      const previous = publishedPayload();
       const adapter = createBazarAdapter();
       const outcome = await adapter.remove(
         listingInfo({ status: 'published', payload: previous }),
@@ -166,23 +173,19 @@ describe('createBazarAdapter', () => {
 });
 
 describe('Bazar item mapping', () => {
-  it('links to the listing only when a template is configured', async () => {
-    expect((await publishedPayload()).link).toBeNull();
-    expect((await publishedPayload({}, null)).link).toBeNull();
-    expect((await publishedPayload({}, '  ')).link).toBeNull();
+  it('links to the listing only when a template is configured', () => {
+    expect(publishedPayload().link).toBeNull();
+    expect(publishedPayload({}, null).link).toBeNull();
+    expect(publishedPayload({}, '  ').link).toBeNull();
     expect(
-      (
-        await publishedPayload(
-          { refCode: 'AG 7/1' },
-          'https://agency.example/o/{refCode}?ref={refCode}',
-        )
-      ).link,
+      publishedPayload({ refCode: 'AG 7/1' }, 'https://agency.example/o/{refCode}?ref={refCode}')
+        .link,
     ).toBe('https://agency.example/o/AG%207%2F1?ref=AG%207%2F1');
   });
 
-  it('orders photos by sortOrder and sends at most 10 additional photos', async () => {
+  it('orders photos by sortOrder and sends at most 10 additional photos', () => {
     const images = Array.from({ length: 13 }, (_, index) => photo(12 - index));
-    const payload = await publishedPayload({ images });
+    const payload = publishedPayload({ images });
     expect(payload.imageLink).toBe(`${BASE_URL}/uploads/properties/12/photo-1.jpg`);
     expect(payload.additionalImageLinks).toEqual(
       Array.from(
@@ -221,9 +224,9 @@ describe('Bazar item mapping', () => {
     expect(new Set(paths).size).toBe(PROPERTY_TYPES.length * DEAL_TYPES.length);
   });
 
-  it('fills the custom labels with town, district, area and rooms', async () => {
+  it('fills the custom labels with town, district, area and rooms', () => {
     expect(
-      await publishedPayload({ city: 'Plovdiv', district: 'Kapana', areaM2: 58.5, rooms: 2 }),
+      publishedPayload({ city: 'Plovdiv', district: 'Kapana', areaM2: 58.5, rooms: 2 }),
     ).toMatchObject({
       customLabel0: 'Пловдив',
       customLabel1: 'Kapana',
@@ -232,45 +235,39 @@ describe('Bazar item mapping', () => {
     });
   });
 
-  it('names the town and the district in Bulgarian when the geo list knows them', async () => {
+  it('names the town and the district in Bulgarian when the geo list knows them', () => {
     // As the registry wires it: Realistimo's geo list (here the committed subset).
-    const adapter = createBazarAdapter({
+    const spec = bazarFeedSpec({
       placeNames: placeNamesFrom(createGeoResolver({ csvPath: null })),
     });
-    const labels = async (city: string, district: string | null) =>
+    const labels = (city: string, district: string | null) =>
       bazarItemPayloadSchema.parse(
-        (await adapter.publish(readyProperty({ city, district }), listingInfo(), adapterContext()))
-          .payload,
+        spec.buildPayload(readyProperty({ city, district }), null, NOW).payload,
       );
 
-    expect(await labels('Sofia', 'Lozenets')).toMatchObject({
+    expect(labels('Sofia', 'Lozenets')).toMatchObject({
       customLabel0: 'София',
       customLabel1: 'Лозенец',
     });
-    expect(await labels('София', 'Лозенец')).toMatchObject({ customLabel1: 'Лозенец' });
+    expect(labels('София', 'Лозенец')).toMatchObject({ customLabel1: 'Лозенец' });
     // A district the list does not know is used as entered; so is the town fallback list.
-    expect(await labels('Sofia', 'Somewhere New')).toMatchObject({
+    expect(labels('Sofia', 'Somewhere New')).toMatchObject({
       customLabel0: 'София',
       customLabel1: 'Somewhere New',
     });
-    expect(await labels('Plovdiv', 'Kapana')).toMatchObject({ customLabel0: 'Пловдив' });
+    expect(labels('Plovdiv', 'Kapana')).toMatchObject({ customLabel0: 'Пловдив' });
   });
 
-  it('leaves out the labels it has no data for', async () => {
+  it('leaves out the labels it has no data for', () => {
     expect(
-      await publishedPayload({ type: 'land', district: '  ', areaM2: null, rooms: null }),
+      publishedPayload({ type: 'land', district: '  ', areaM2: null, rooms: null }),
     ).toMatchObject({ customLabel1: null, customLabel2: null, customLabel3: null });
   });
 
-  it('cuts a long title and description to the feed limits and says so', async () => {
-    const adapter = createBazarAdapter();
+  it('cuts a long title and description to the feed limits and says so', () => {
     const title = `Тристаен апартамент ${'с гледка '.repeat(20)}`.trim();
     const description = 'Светъл апартамент. '.repeat(300);
-    const outcome = await adapter.publish(
-      readyProperty({ title, description }),
-      listingInfo(),
-      adapterContext(),
-    );
+    const outcome = bazarFeedSpec().buildPayload(readyProperty({ title, description }), null, NOW);
     const payload = bazarItemPayloadSchema.parse(outcome.payload);
 
     expect(title.length).toBeGreaterThan(150);

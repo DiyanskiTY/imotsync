@@ -1,11 +1,5 @@
-import {
-  PortalError,
-  type AdapterContext,
-  type AdapterOutcome,
-  type PortalAdapter,
-  type PortalListingInfo,
-  type PortalProperty,
-} from '../types.js';
+import { createFeedAdapter, type FeedAdapterSpec } from '../feed-adapter.js';
+import type { PortalAdapter } from '../types.js';
 import { buildBazarItem, type BazarPlaceNames } from './mapping.js';
 import { readBazarPayload } from './payload.js';
 import { validateForBazar } from './validation.js';
@@ -25,13 +19,6 @@ export interface BazarAdapterOptions {
   placeNames?: BazarPlaceNames;
 }
 
-/** Runs synchronous work as a promise, so a throw becomes a rejection like any I/O error. */
-function settle<T>(work: () => T): Promise<T> {
-  return new Promise((resolve) => {
-    resolve(work());
-  });
-}
-
 /**
  * Bazar.bg through its product feed import: the agency registers the feed URL once in its
  * Bazar Premium account, and Bazar downloads the feed on its own schedule (every 6, 12 or
@@ -43,80 +30,52 @@ function settle<T>(work: () => T): Promise<T> {
  * - remove keeps the item in the feed marked out_of_stock, which makes Bazar archive the
  *   listing; the feed renderer drops it after the retention period.
  *
- * Nothing here does I/O: the adapter only computes what the feed serves.
+ * Nothing here does I/O: the spec only computes what the feed serves (see createFeedAdapter).
  */
-export function createBazarAdapter(options: BazarAdapterOptions = {}): PortalAdapter {
-  function feedOutcome(
-    property: PortalProperty,
-    ctx: AdapterContext,
-    message: string,
-  ): AdapterOutcome {
-    ctx.signal.throwIfAborted();
-    const issues = validateForBazar(property);
-    if (issues.length > 0) {
-      const summary = issues.map((issue) => `${issue.field}: ${issue.message}`).join('; ');
-      throw new PortalError(`Validation failed: ${summary}`, false, { code: 'VALIDATION_FAILED' });
-    }
-    const { payload, truncated } = buildBazarItem(property, {
-      listingUrlTemplate: options.listingUrlTemplate,
-      placeNames: options.placeNames,
-    });
-    return {
-      payload,
-      message,
-      details: {
-        feedItemId: payload.id,
-        availability: payload.availability,
-        imageCount: 1 + payload.additionalImageLinks.length,
-        ...(truncated.length > 0 ? { truncated } : {}),
-      },
-    };
-  }
-
-  function removalOutcome(listing: PortalListingInfo, ctx: AdapterContext): AdapterOutcome {
-    ctx.signal.throwIfAborted();
-    const previous = readBazarPayload(listing.payload);
-    if (!previous) {
-      // The feed only ever serves stored payloads, so Bazar never received this listing.
-      return { payload: null, message: 'Not in the Bazar feed, nothing to remove' };
-    }
-    return {
-      payload: { ...previous, availability: 'out_of_stock' },
-      message:
-        'Marked out of stock in the Bazar feed (Bazar archives the listing on its next scheduled download)',
-      details: { feedItemId: previous.id, availability: 'out_of_stock' },
-    };
-  }
-
+export function bazarFeedSpec(options: BazarAdapterOptions = {}): FeedAdapterSpec {
   return {
     key: BAZAR_PORTAL_KEY,
     displayName: BAZAR_DISPLAY_NAME,
-    mode: 'feed',
+    messages: {
+      publish: 'Added to the Bazar feed (Bazar picks it up on its next scheduled download)',
+      update: 'Updated in the Bazar feed (Bazar applies it on its next scheduled download)',
+    },
 
     validate: validateForBazar,
 
-    publish(property: PortalProperty, _listing: PortalListingInfo, ctx: AdapterContext) {
-      return settle(() =>
-        feedOutcome(
-          property,
-          ctx,
-          'Added to the Bazar feed (Bazar picks it up on its next scheduled download)',
-        ),
-      );
+    buildPayload(property) {
+      const { payload, truncated } = buildBazarItem(property, {
+        listingUrlTemplate: options.listingUrlTemplate,
+        placeNames: options.placeNames,
+      });
+      return {
+        payload,
+        details: {
+          feedItemId: payload.id,
+          availability: payload.availability,
+          imageCount: 1 + payload.additionalImageLinks.length,
+          ...(truncated.length > 0 ? { truncated } : {}),
+        },
+      };
     },
 
-    update(property: PortalProperty, _listing: PortalListingInfo, ctx: AdapterContext) {
-      return settle(() =>
-        feedOutcome(
-          property,
-          ctx,
-          'Updated in the Bazar feed (Bazar applies it on its next scheduled download)',
-        ),
-      );
-    },
-
-    remove(listing: PortalListingInfo, _property: PortalProperty | null, ctx: AdapterContext) {
-      return settle(() => removalOutcome(listing, ctx));
+    buildRemoval(previousPayload) {
+      const previous = readBazarPayload(previousPayload);
+      if (!previous) {
+        // The feed only ever serves stored payloads, so Bazar never received this listing.
+        return { payload: null, message: 'Not in the Bazar feed, nothing to remove' };
+      }
+      // The tombstone: the item Bazar last received, marked out of stock.
+      return {
+        payload: { ...previous, availability: 'out_of_stock' },
+        message:
+          'Marked out of stock in the Bazar feed (Bazar archives the listing on its next scheduled download)',
+        details: { feedItemId: previous.id, availability: 'out_of_stock' },
+      };
     },
   };
+}
+
+export function createBazarAdapter(options: BazarAdapterOptions = {}): PortalAdapter {
+  return createFeedAdapter(bazarFeedSpec(options));
 }

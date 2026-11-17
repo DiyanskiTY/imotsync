@@ -15,8 +15,10 @@ import { UNEXPECTED_ERROR_MESSAGE } from '../../src/jobs/failure.js';
 import { recordSuccess } from '../../src/jobs/outcome.js';
 import { collectUnusedPhotos } from '../../src/jobs/photo-gc.js';
 import {
+  deletionBlocker,
   finishPendingDeletions,
   finishRequestedDeletion,
+  pendingDeletionCandidates,
 } from '../../src/jobs/property-deletion.js';
 import { sweepStaleJobs } from '../../src/jobs/sweep.js';
 import { queueTransaction } from '../../src/jobs/transaction.js';
@@ -25,6 +27,10 @@ import { LocalFileStorage } from '../../src/lib/storage.js';
 import { createLogger } from '../../src/logger.js';
 import { feedLastChanged, loadFeedItems } from '../../src/portals/feed-items.js';
 import { registryFrom, type PortalRegistry } from '../../src/portals/registry.js';
+import {
+  isRemovalStillServed,
+  removalRetentionCutoff,
+} from '../../src/portals/removal-retention.js';
 import type { AdapterContext, PortalAdapter, PortalListingInfo } from '../../src/portals/types.js';
 import { closeApiFixture, startApiFixture, type ApiFixture } from './api-fixture.js';
 import {
@@ -932,6 +938,54 @@ describe('finishing a bulk delete', () => {
       await finishPendingDeletions(fx.db, logger, rules(new Date('2026-12-10T10:00:01Z'))),
     ).toContain(propertyId);
     expect(await fx.db('properties').where({ id: propertyId })).toEqual([]);
+  });
+
+  it('the SQL pre-filter and isRemovalStillServed agree at the retention boundary', async () => {
+    const now = new Date('2026-12-10T10:00:00Z');
+    const rules = { removedRetentionDays: new Map([['bazar', 30]]), now };
+    const cutoff = removalRetentionCutoff(30, now);
+    // payload_updated_at is a DATETIME (whole seconds), so the cases are a second apart.
+    const cases = [
+      { name: 'just inside', offsetMs: 1000, served: true },
+      { name: 'exactly at', offsetMs: 0, served: true },
+      { name: 'just outside', offsetMs: -1000, served: false },
+    ];
+    const rows: { name: string; propertyId: number; listingId: number; served: boolean }[] = [];
+    for (const { name, offsetMs, served } of cases) {
+      const propertyId = await insertProperty(fx);
+      const removedAt = new Date(cutoff.getTime() + offsetMs);
+      const listingId = await insertListing(fx, propertyId, 'bazar', {
+        status: 'removed',
+        published_at: new Date('2026-11-01T10:00:00Z'),
+        removed_at: removedAt,
+        payload: JSON.stringify({ id: 'x', availability: 'out_of_stock' }),
+        payload_updated_at: removedAt,
+      });
+      await fx
+        .db('properties')
+        .where({ id: propertyId })
+        .update({ status: 'archived', delete_requested_at: new Date() });
+      rows.push({ name, propertyId, listingId, served });
+    }
+
+    const candidates = await pendingDeletionCandidates(fx.db, rules);
+    for (const { name, propertyId, listingId, served } of rows) {
+      const listing = await listingRow(fx, listingId);
+      if (!listing.payload_updated_at) throw new Error(`${name}: payload_updated_at is missing`);
+      expect({
+        name,
+        served: isRemovalStillServed(listing.payload_updated_at, 30, now),
+      }).toEqual({ name, served });
+      // Served: neither the pre-filter nor the locked check lets the property go; else both do.
+      expect({ name, candidate: candidates.includes(propertyId) }).toEqual({
+        name,
+        candidate: !served,
+      });
+      expect({ name, blocker: deletionBlocker([listing], rules)?.kind ?? null }).toEqual({
+        name,
+        blocker: served ? 'tombstone' : null,
+      });
+    }
   });
 
   it('holds the delete back while a removal failed (the listing may still be online)', async () => {

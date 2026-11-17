@@ -21,6 +21,7 @@
 export {
   BAZAR_DISPLAY_NAME,
   BAZAR_PORTAL_KEY,
+  bazarFeedSpec,
   createBazarAdapter,
   type BazarAdapterOptions,
 } from './adapter.js';

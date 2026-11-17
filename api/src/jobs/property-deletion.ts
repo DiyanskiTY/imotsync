@@ -2,6 +2,7 @@ import type { Knex } from 'knex';
 import type { PortalListingRow } from '../db/types.js';
 import type { Logger } from '../logger.js';
 import { recordFeedChangeForDeletedProperty } from '../portals/feed-items.js';
+import { isRemovalStillServed, removalRetentionCutoff } from '../portals/removal-retention.js';
 import { mayBeLive, UNFINISHED_JOB_STATUSES } from './listing-state.js';
 import { createQueueRepository } from './queue.repository.js';
 import { queueTransaction } from './transaction.js';
@@ -19,8 +20,6 @@ import { queueTransaction } from './transaction.js';
  * Photo files are never deleted here: a stored feed payload may still link to them. The
  * worker's photo sweep (photo-gc.ts) deletes files nothing refers to any more.
  */
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface DeletionRules {
   /**
@@ -49,8 +48,8 @@ export function isFeedTombstone(
   if (listing.removed_at === null || listing.payload === null) return false;
   if (listing.payload_updated_at === null) return false;
   const days = removedRetentionDays.get(listing.portal) ?? 0;
-  // The same boundary as the Bazar feed renderer: served while within the retention period.
-  return days > 0 && listing.payload_updated_at.getTime() >= now.getTime() - days * DAY_MS;
+  // The rule the Bazar feed renderer serves removed items by.
+  return isRemovalStillServed(listing.payload_updated_at, days, now);
 }
 
 /** What keeps a property from being deleted now, or null when it may go. */
@@ -150,21 +149,22 @@ export async function finishRequestedDeletion(
 const PENDING_DELETIONS_BATCH = 50;
 
 /**
- * The worker's periodic check: finishes the requested deletions that are ready but were not
- * completed right after a job, e.g. because the job that ended last failed, finishing threw
- * (database trouble), or a removal tombstone was still within its retention period.
- * Candidates are archived properties with delete_requested_at, nothing pending or online and
- * no tombstone within retention; finishRequestedDeletion checks each again under locks.
- * Returns the ids deleted.
+ * Ids of the properties finishPendingDeletions tries to delete (at most one batch): archived,
+ * with delete_requested_at, and none of their listings pending, online or a tombstone the feed
+ * still serves.
+ *
+ * This is a pre-filter only, so that the sweep does not lock properties that cannot go yet:
+ * finishRequestedDeletion decides under locks with deletionBlocker. Its tombstone condition
+ * repeats isRemovalStillServed in SQL (retention > 0, payload_updated_at at or after
+ * removalRetentionCutoff) and must keep the same boundary; a test checks that they agree.
  */
-export async function finishPendingDeletions(
+export async function pendingDeletionCandidates(
   db: Knex,
-  logger: Logger,
-  rules: DeletionRules,
+  rules: DeletionRules & { now: Date },
 ): Promise<number[]> {
-  const now = rules.now ?? new Date();
+  const { now } = rules;
   const retained = [...rules.removedRetentionDays].filter(([, days]) => days > 0);
-  const candidates = await db('properties')
+  return db('properties')
     .whereNotNull('delete_requested_at')
     .where('status', 'archived')
     .whereNotExists((query) => {
@@ -187,7 +187,7 @@ export async function finishPendingDeletions(
                 .where(
                   'portal_listings.payload_updated_at',
                   '>=',
-                  new Date(now.getTime() - days * DAY_MS),
+                  removalRetentionCutoff(days, now),
                 );
             });
           }
@@ -196,6 +196,22 @@ export async function finishPendingDeletions(
     .orderBy('id', 'asc')
     .limit(PENDING_DELETIONS_BATCH)
     .pluck('id');
+}
+
+/**
+ * The worker's periodic check: finishes the requested deletions that are ready but were not
+ * completed right after a job, e.g. because the job that ended last failed, finishing threw
+ * (database trouble), or a removal tombstone was still within its retention period.
+ * Candidates come from pendingDeletionCandidates; finishRequestedDeletion checks each again
+ * under locks. Returns the ids deleted.
+ */
+export async function finishPendingDeletions(
+  db: Knex,
+  logger: Logger,
+  rules: DeletionRules,
+): Promise<number[]> {
+  const now = rules.now ?? new Date();
+  const candidates = await pendingDeletionCandidates(db, { ...rules, now });
 
   const deleted: number[] = [];
   for (const propertyId of candidates) {

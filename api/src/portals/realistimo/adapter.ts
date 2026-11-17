@@ -1,9 +1,7 @@
+import { createFeedAdapter, type FeedAdapterSpec } from '../feed-adapter.js';
 import {
   PortalError,
-  type AdapterContext,
-  type AdapterOutcome,
   type PortalAdapter,
-  type PortalListingInfo,
   type PortalProperty,
   type ValidationIssue,
 } from '../types.js';
@@ -103,108 +101,62 @@ export function validateForRealistimo(
   return issues;
 }
 
-/** Runs synchronous work as a promise, so a throw becomes a rejection. */
-function settle<T>(work: () => T): Promise<T> {
-  try {
-    return Promise.resolve(work());
-  } catch (error) {
-    return Promise.reject(error instanceof Error ? error : new Error(String(error)));
-  }
-}
-
-export function createRealistimoAdapter(options: RealistimoAdapterOptions): PortalAdapter {
+/** Realistimo as a feed adapter spec: plain functions, no I/O (see createFeedAdapter). */
+export function realistimoFeedSpec(options: RealistimoAdapterOptions): FeedAdapterSpec {
   const { agencyUid, geo } = options;
-
-  function feedOutcome(
-    property: PortalProperty,
-    listing: PortalListingInfo,
-    ctx: AdapterContext,
-    message: string,
-  ): AdapterOutcome {
-    ctx.signal.throwIfAborted();
-    const issues = validateForRealistimo(property, geo);
-    if (issues.length > 0) {
-      throw new PortalError(
-        `Realistimo cannot take this property: ${issues
-          .map((issue) => `${issue.field}: ${issue.message}`)
-          .join('; ')}`,
-        false,
-        { code: 'validation' },
-      );
-    }
-    const location = geo.resolve(property.city, property.district);
-    if (!location.ok) throw new PortalError('Realistimo location not found', false);
-    const payload: RealistimoOfferPayload = buildRealistimoOffer(property, location.internalId);
-    // Realistimo skips most fields of an offer whose <last_update> is not newer than what it
-    // imported, so it moves on with every change of the offer, whatever caused it.
-    payload.last_update = realistimoLastUpdate(payload, listing.payload, ctx.now);
-    return {
-      payload,
-      message,
-      details: {
-        agencyUid,
-        offerUid: payload.offer_uid,
-        internalId: location.internalId,
-        location: location.label,
-        locationLevel: location.level,
-      },
-    };
-  }
-
   return {
     key: REALISTIMO_KEY,
     displayName: REALISTIMO_DISPLAY_NAME,
-    mode: 'feed',
-
-    validate(property) {
-      return validateForRealistimo(property, geo);
+    messages: {
+      publish: 'Added to the Realistimo feed (next import picks it up)',
+      update: 'Updated in the Realistimo feed (next import picks it up)',
     },
 
-    publish(property, listing, ctx) {
-      return settle(() =>
-        feedOutcome(
-          property,
-          listing,
-          ctx,
-          'Added to the Realistimo feed (next import picks it up)',
-        ),
-      );
+    validate: (property) => validateForRealistimo(property, geo),
+
+    buildPayload(property, previousPayload, now) {
+      const location = geo.resolve(property.city, property.district);
+      if (!location.ok) throw new PortalError('Realistimo location not found', false);
+      const payload: RealistimoOfferPayload = buildRealistimoOffer(property, location.internalId);
+      // Realistimo skips most fields of an offer whose <last_update> is not newer than what it
+      // imported, so it moves on with every change of the offer, whatever caused it.
+      payload.last_update = realistimoLastUpdate(payload, previousPayload, now);
+      return {
+        payload,
+        details: {
+          agencyUid,
+          offerUid: payload.offer_uid,
+          internalId: location.internalId,
+          location: location.label,
+          locationLevel: location.level,
+        },
+      };
     },
 
-    update(property, listing, ctx) {
-      return settle(() =>
-        feedOutcome(
-          property,
-          listing,
-          ctx,
-          'Updated in the Realistimo feed (next import picks it up)',
-        ),
-      );
-    },
-
-    remove(listing, property, ctx) {
-      return settle((): AdapterOutcome => {
-        ctx.signal.throwIfAborted();
-        if (listing.payload === null) {
-          // Nothing of this listing was ever served, so there is nothing to take down.
-          return {
-            payload: null,
-            message: 'Not in the Realistimo feed; nothing to remove',
-            details: { agencyUid, offerUid: property?.refCode ?? null },
-          };
-        }
-        // The offer leaves <offers>: Realistimo takes it down at its next import.
-        const previousUid = listing.payload.offer_uid;
-        const offerUid =
-          typeof previousUid === 'string' && previousUid !== ''
-            ? previousUid
-            : (property?.refCode ?? null);
+    buildRemoval(previousPayload, property) {
+      if (previousPayload === null) {
+        // Nothing of this listing was ever served, so there is nothing to take down.
         return {
           payload: null,
-          message: 'Removed from the Realistimo feed (next import takes the offer down)',
-          details: { agencyUid, offerUid },
+          message: 'Not in the Realistimo feed; nothing to remove',
+          details: { agencyUid, offerUid: property?.refCode ?? null },
         };
-      });
+      }
+      // The offer leaves <offers>: Realistimo takes it down at its next import.
+      const previousUid = previousPayload.offer_uid;
+      const offerUid =
+        typeof previousUid === 'string' && previousUid !== ''
+          ? previousUid
+          : (property?.refCode ?? null);
+      return {
+        payload: null,
+        message: 'Removed from the Realistimo feed (next import takes the offer down)',
+        details: { agencyUid, offerUid },
+      };
     },
   };
+}
+
+export function createRealistimoAdapter(options: RealistimoAdapterOptions): PortalAdapter {
+  return createFeedAdapter(realistimoFeedSpec(options));
 }

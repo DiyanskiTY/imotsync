@@ -3,6 +3,7 @@ import type { PropertyType } from '../../../../src/db/types.js';
 import {
   createRealistimoAdapter,
   REALISTIMO_KEY,
+  realistimoFeedSpec,
   validateForRealistimo,
 } from '../../../../src/portals/realistimo/adapter.js';
 import {
@@ -13,7 +14,11 @@ import {
 import { PortalError } from '../../../../src/portals/types.js';
 import { makeContext, makeListing, makeProperty, subsetGeo } from './fixtures.js';
 
-const adapter = createRealistimoAdapter({ agencyUid: 'imotsync-demo', geo: subsetGeo });
+const options = { agencyUid: 'imotsync-demo', geo: subsetGeo };
+const adapter = createRealistimoAdapter(options);
+/** The same portal as plain functions (publish, update and remove without the adapter's wrapping). */
+const spec = realistimoFeedSpec(options);
+const NOW = makeContext().now;
 
 const fields = (property = makeProperty()) =>
   validateForRealistimo(property, subsetGeo).map((issue) => issue.field);
@@ -309,14 +314,13 @@ describe('Realistimo publish / update / remove', () => {
     expect(outcome.payload).toMatchObject({ price: '239000', last_update: '2026-01-15 13:00:00' });
   });
 
-  it('last_update: the job time when the offer changed, else the date it already had', async () => {
+  it('last_update: the job time when the offer changed, else the date it already had', () => {
     const property = makeProperty();
-    const first = await adapter.publish(property, makeListing(), makeContext());
-    const stored = first.payload ?? null;
-    const later = makeContext({ now: new Date('2026-03-10T09:30:00Z') });
+    const stored = spec.buildPayload(property, null, makeContext().now).payload;
+    const later = new Date('2026-03-10T09:30:00Z');
 
     // Nothing in the offer changed (e.g. a status change, or the same data sent again).
-    const same = await adapter.update(property, makeListing({ payload: stored }), later);
+    const same = spec.buildPayload(property, stored, later);
     expect(same.payload).toMatchObject({ last_update: '2026-01-15 13:00:00' });
     expect(same.payload).toEqual(stored);
 
@@ -328,9 +332,9 @@ describe('Realistimo publish / update / remove', () => {
         url: image.url.replace(/^https?:\/\/[^/]+/, 'https://new-host.example'),
       })),
     });
-    const changed = await adapter.update(moved, makeListing({ payload: stored }), later);
+    const changed = spec.buildPayload(moved, stored, later);
     expect(changed.payload).toMatchObject({ last_update: '2026-03-10 11:30:00' });
-    expect(property.updatedAt.getTime()).toBeLessThan(later.now.getTime());
+    expect(property.updatedAt.getTime()).toBeLessThan(later.getTime());
   });
 
   it('uses the city id when the district is unknown', async () => {
@@ -350,7 +354,8 @@ describe('Realistimo publish / update / remove', () => {
     await expect(result).rejects.toBeInstanceOf(PortalError);
     await expect(result).rejects.toMatchObject({
       retryable: false,
-      message: 'Realistimo cannot take this property: images: Realistimo needs at least one photo.',
+      message: 'Validation failed: images: Realistimo needs at least one photo.',
+      options: { code: 'VALIDATION' },
     });
   });
 
@@ -380,29 +385,31 @@ describe('Realistimo publish / update / remove', () => {
     expect(outcome.details).toEqual({ agencyUid: 'imotsync-demo', offerUid: 'IS-00001' });
   });
 
-  it('remove works after the property is gone', async () => {
-    const published = makeListing({ payload: buildRealistimoOffer(makeProperty(), 8621) });
+  it('remove works after the property is gone', () => {
+    const removal = spec.buildRemoval(buildRealistimoOffer(makeProperty(), 8621), null, NOW);
 
-    const outcome = await adapter.remove(published, null, makeContext());
-
-    expect(outcome.payload).toBeNull();
-    expect(outcome.details).toEqual({ agencyUid: 'imotsync-demo', offerUid: 'IS-00001' });
+    expect(removal.payload).toBeNull();
+    expect(removal.details).toEqual({ agencyUid: 'imotsync-demo', offerUid: 'IS-00001' });
   });
 
   it('remove of a listing that never reached the feed drops nothing and keeps no payload', async () => {
     const outcome = await adapter.remove(makeListing(), makeProperty(), makeContext());
-    expect(outcome.payload).toBeNull();
-    expect(outcome.message).toBe('Not in the Realistimo feed; nothing to remove');
-    expect((await adapter.remove(makeListing(), null, makeContext())).payload).toBeNull();
+    expect(outcome).toEqual({
+      payload: null,
+      message: 'Not in the Realistimo feed; nothing to remove',
+      details: { agencyUid: 'imotsync-demo', offerUid: 'IS-00001' },
+    });
+    expect(spec.buildRemoval(null, null, NOW)).toMatchObject({
+      payload: null,
+      details: { offerUid: null },
+    });
   });
 
-  it('remove uses the ref code when the stored payload lacks an offer_uid', async () => {
-    const odd = makeListing({ payload: { title: 'x' } });
-    const outcome = await adapter.remove(odd, makeProperty(), makeContext());
-    expect(outcome.payload).toBeNull();
-    expect(outcome.details).toMatchObject({ offerUid: 'IS-00001' });
-    expect((await adapter.remove(odd, null, makeContext())).details).toMatchObject({
-      offerUid: null,
-    });
+  it('remove uses the ref code when the stored payload lacks an offer_uid', () => {
+    const odd = { title: 'x' };
+    const removal = spec.buildRemoval(odd, makeProperty(), NOW);
+    expect(removal.payload).toBeNull();
+    expect(removal.details).toMatchObject({ offerUid: 'IS-00001' });
+    expect(spec.buildRemoval(odd, null, NOW).details).toMatchObject({ offerUid: null });
   });
 });
