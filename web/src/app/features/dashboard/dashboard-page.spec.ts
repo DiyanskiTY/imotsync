@@ -129,7 +129,7 @@ describe('DashboardPage', () => {
 
     expect(tileValue(fixture, 'API')).toBe('Error');
     expect(messages(fixture)).toEqual([
-      'The API returned an unexpected health response. Refresh to try again.',
+      'The API returned an unexpected response. Refresh to try again.',
     ]);
   });
 

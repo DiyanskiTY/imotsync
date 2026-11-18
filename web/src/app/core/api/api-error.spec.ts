@@ -1,7 +1,7 @@
 import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { TimeoutError } from 'rxjs';
 
-import { ApiError, readApiErrorBody, toApiError } from './api-error';
+import { ApiError, readApiErrorBody, toApiError, UnexpectedResponseError } from './api-error';
 
 function httpError(status: number, body: unknown = null, headers?: Record<string, string>) {
   return new HttpErrorResponse({
@@ -79,6 +79,14 @@ describe('toApiError', () => {
 
   it('explains a 2xx whose body was not JSON', () => {
     expect(toApiError(httpError(200, { error: new SyntaxError('bad json') }))).toMatchObject({
+      code: null,
+      unreachable: false,
+      message: 'The API returned an unexpected response.',
+    });
+  });
+
+  it('explains an answer that is not what the endpoint returns', () => {
+    expect(toApiError(new UnexpectedResponseError())).toMatchObject({
       code: null,
       unreachable: false,
       message: 'The API returned an unexpected response.',

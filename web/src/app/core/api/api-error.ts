@@ -25,6 +25,15 @@ export interface ApiError {
 const PROXY_ERROR_STATUSES: readonly number[] = [500, 502, 503, 504];
 
 export const UNREACHABLE_MESSAGE = 'The API could not be reached.';
+const UNEXPECTED_RESPONSE_MESSAGE = 'The API returned an unexpected response.';
+
+/** The API answered successfully, but not with what the endpoint returns (a client's own check). */
+export class UnexpectedResponseError extends Error {
+  constructor() {
+    super(UNEXPECTED_RESPONSE_MESSAGE);
+    this.name = 'UnexpectedResponseError';
+  }
+}
 
 export function toApiError(error: unknown): ApiError {
   if (error instanceof HttpErrorResponse) {
@@ -32,6 +41,9 @@ export function toApiError(error: unknown): ApiError {
   }
   if (error instanceof TimeoutError) {
     return failure(0, 'The API did not answer in time.', true);
+  }
+  if (error instanceof UnexpectedResponseError) {
+    return failure(0, error.message, false);
   }
   return failure(0, 'Something went wrong. Please try again.', false);
 }
@@ -53,7 +65,7 @@ function fromHttpError(error: HttpErrorResponse): ApiError {
   }
   // A 2xx status here means the body could not be parsed as JSON.
   if (error.status >= 200 && error.status < 300) {
-    return failure(error.status, 'The API returned an unexpected response.', false);
+    return failure(error.status, UNEXPECTED_RESPONSE_MESSAGE, false);
   }
   return failure(error.status, `The API responded with HTTP ${error.status}.`, false);
 }

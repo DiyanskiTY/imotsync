@@ -3,14 +3,13 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { TimeoutError } from 'rxjs';
 
+import { UnexpectedResponseError } from '../api/api-error';
 import {
-  describeHealthError,
   HEALTH_TIMEOUT_MS,
   HEALTH_URL,
   HealthApi,
   HealthReport,
   isHealthReport,
-  UnexpectedHealthResponseError,
 } from './health-api';
 
 const okReport: HealthReport = { status: 'ok', db: 'up', version: '0.1.0', uptimeSeconds: 42 };
@@ -81,7 +80,7 @@ describe('HealthApi', () => {
     http.expectOne(HEALTH_URL).flush(body);
 
     expect(result).toBeUndefined();
-    expect(error).toBeInstanceOf(UnexpectedHealthResponseError);
+    expect(error).toBeInstanceOf(UnexpectedResponseError);
   });
 
   it('fails when a 503 response does not carry a health report', () => {
@@ -131,67 +130,5 @@ describe('isHealthReport', () => {
     expect(isHealthReport('ok')).toBe(false);
     expect(isHealthReport({ status: 'ok', db: 'up' })).toBe(false);
     expect(isHealthReport({ ...okReport, status: 'fine' })).toBe(false);
-  });
-});
-
-describe('describeHealthError', () => {
-  const httpError = (status: number, error: unknown = null) =>
-    new HttpErrorResponse({ status, error, url: HEALTH_URL });
-  const unreachable = { unreachable: true, message: 'The API could not be reached.' };
-
-  it('treats a timeout as an unreachable API', () => {
-    expect(describeHealthError(new TimeoutError())).toEqual({
-      unreachable: true,
-      message: 'The API did not answer within 10 seconds.',
-    });
-  });
-
-  it('treats network errors and proxy errors without an API body as an unreachable API', () => {
-    expect(describeHealthError(httpError(0))).toEqual(unreachable);
-    expect(describeHealthError(httpError(500, ''))).toEqual(unreachable);
-    expect(describeHealthError(httpError(502))).toEqual(unreachable);
-    expect(describeHealthError(httpError(503, 'Service Unavailable'))).toEqual(unreachable);
-    expect(describeHealthError(httpError(504))).toEqual(unreachable);
-  });
-
-  it("uses the message from the API's error body: the API answered", () => {
-    const body = { error: { code: 'INTERNAL', message: 'Something broke.' } };
-    expect(describeHealthError(httpError(500, body))).toEqual({
-      unreachable: false,
-      message: 'Something broke.',
-    });
-  });
-
-  it('ignores error bodies that are not in the API format', () => {
-    // What HttpClient reports when a 200 body is not JSON (e.g. an HTML page).
-    const parseFailure = { error: new SyntaxError('Unexpected token <'), text: '<!doctype html>' };
-    expect(describeHealthError(httpError(200, parseFailure))).toEqual({
-      unreachable: false,
-      message: 'The API returned an unexpected health response.',
-    });
-    expect(describeHealthError(httpError(502, { error: { message: 'no code' } }))).toEqual(
-      unreachable,
-    );
-  });
-
-  it('explains a successful response that is not a health report', () => {
-    expect(describeHealthError(new UnexpectedHealthResponseError())).toEqual({
-      unreachable: false,
-      message: 'The API returned an unexpected health response.',
-    });
-  });
-
-  it('falls back to the HTTP status', () => {
-    expect(describeHealthError(httpError(418))).toEqual({
-      unreachable: false,
-      message: 'The API responded with HTTP 418.',
-    });
-  });
-
-  it('handles unexpected errors', () => {
-    expect(describeHealthError(new Error('boom'))).toEqual({
-      unreachable: false,
-      message: 'Unexpected error while checking the API.',
-    });
   });
 });

@@ -1,28 +1,19 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, Signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { MessageModule } from 'primeng/message';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
-import { catchError, map, of, startWith, Subject, switchMap } from 'rxjs';
+import { finalize, startWith, Subject } from 'rxjs';
 
 import { SHOW_DEV_HINTS } from '../../core/dev-hints';
-import {
-  describeHealthError,
-  HealthApi,
-  HealthCheckFailure,
-  HealthReport,
-} from '../../core/health/health-api';
+import { HealthApi, HealthReport } from '../../core/health/health-api';
 import { formatUptime } from '../../shared/format-uptime';
 import { PageHeader } from '../../shared/page-header';
+import { RemoteState, remoteState } from '../../shared/remote-state';
 import { PortalFeeds } from './portal-feeds';
-
-export type HealthState =
-  | { kind: 'loading' }
-  | { kind: 'ready'; report: HealthReport; checkedAt: Date }
-  | { kind: 'error'; failure: HealthCheckFailure; checkedAt: Date };
 
 type TagSeverity = 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast';
 
@@ -63,43 +54,29 @@ export class DashboardPage {
   /** Development builds explain how to start the API and the database; production builds do not. */
   protected readonly showDevHints = inject(SHOW_DEV_HINTS);
 
-  /** Health check state; every refresh cancels the previous request. */
-  protected readonly state: Signal<HealthState> = toSignal(
-    this.refreshRequests.pipe(
-      startWith(undefined),
-      switchMap(() =>
-        this.healthApi.getHealth().pipe(
-          map((report): HealthState => ({ kind: 'ready', report, checkedAt: new Date() })),
-          catchError((error: unknown) =>
-            of<HealthState>({
-              kind: 'error',
-              failure: describeHealthError(error),
-              checkedAt: new Date(),
-            }),
-          ),
-          startWith<HealthState>({ kind: 'loading' }),
-        ),
-      ),
+  /** When the last check finished, successfully or not; null until the first one has. */
+  protected readonly checkedAt = signal<Date | null>(null);
+
+  /** The health check; every refresh cancels the previous request. */
+  private readonly health = toSignal(
+    remoteState(this.refreshRequests.pipe(startWith(undefined)), () =>
+      this.healthApi.getHealth().pipe(finalize(() => this.checkedAt.set(new Date()))),
     ),
     { requireSync: true },
   );
 
-  protected readonly loading = computed(() => this.state().kind === 'loading');
-  protected readonly tiles = computed(() => buildTiles(this.state()));
-
-  protected readonly checkedAt = computed(() => {
-    const state = this.state();
-    return state.kind === 'loading' ? null : state.checkedAt;
+  /** A check is running (the Refresh button spins). */
+  protected readonly checking = computed(() => this.health().loading);
+  /** Nothing to show yet: the tiles are placeholders. */
+  protected readonly waiting = computed(() => {
+    const { data, error } = this.health();
+    return data === null && error === null;
   });
-
-  protected readonly failure = computed(() => {
-    const state = this.state();
-    return state.kind === 'error' ? state.failure : null;
-  });
-
+  protected readonly tiles = computed(() => buildTiles(this.health()));
+  protected readonly failure = computed(() => this.health().error);
   protected readonly databaseDown = computed(() => {
-    const state = this.state();
-    return state.kind === 'ready' && state.report.db === 'down';
+    const { data, error } = this.health();
+    return error === null && data?.db === 'down';
   });
 
   protected readonly steps: readonly Step[] = [
@@ -135,18 +112,13 @@ const DATABASE_TILE = { label: 'Database', icon: 'pi pi-database' };
 const VERSION_TILE = { label: 'Version', icon: 'pi pi-tag' };
 const UPTIME_TILE = { label: 'Uptime', icon: 'pi pi-clock' };
 
-/** Maps the health state to the four status tiles shown on the dashboard. */
-export function buildTiles(state: HealthState): StatusTile[] {
-  if (state.kind === 'loading') {
-    return [API_TILE, DATABASE_TILE, VERSION_TILE, UPTIME_TILE].map((tile) => ({
-      ...tile,
-      value: '',
-      detail: '',
-    }));
-  }
-
-  if (state.kind === 'error') {
-    const api: StatusTile = state.failure.unreachable
+/**
+ * Maps the health check to the four status tiles shown on the dashboard. A failed check wins over
+ * an earlier report; while a check runs, the last report stays on screen.
+ */
+export function buildTiles({ data: report, error }: RemoteState<HealthReport>): StatusTile[] {
+  if (error !== null) {
+    const api: StatusTile = error.unreachable
       ? { ...API_TILE, value: 'Offline', severity: 'danger', detail: 'No response from the API' }
       : { ...API_TILE, value: 'Error', severity: 'danger', detail: 'Health check failed' };
     return [
@@ -157,7 +129,14 @@ export function buildTiles(state: HealthState): StatusTile[] {
     ];
   }
 
-  const { report } = state;
+  if (report === null) {
+    return [API_TILE, DATABASE_TILE, VERSION_TILE, UPTIME_TILE].map((tile) => ({
+      ...tile,
+      value: '',
+      detail: '',
+    }));
+  }
+
   const apiOk = report.status === 'ok';
   const dbUp = report.db === 'up';
   return [

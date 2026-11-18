@@ -7,7 +7,7 @@
     icon="pi pi-refresh"
     severity="secondary"
     [outlined]="true"
-    [loading]="loading()"
+    [loading]="checking()"
     (onClick)="refresh()"
   />
 </app-page-header>
@@ -67,7 +67,7 @@
             class="mt-3 flex min-h-8 items-center"
             [attr.data-testid]="'tile-value-' + tile.label"
           >
-            @if (loading()) {
+            @if (waiting()) {
               <p-skeleton width="6rem" height="1.75rem" />
             } @else if (tile.severity) {
               <p-tag [value]="tile.value" [severity]="tile.severity" />
@@ -76,7 +76,7 @@
             }
           </div>
           <p class="mt-2 min-h-5 text-sm text-muted-color">
-            @if (loading()) {
+            @if (waiting()) {
               <p-skeleton width="8rem" height="1rem" />
             } @else {
               {{ tile.detail }}
