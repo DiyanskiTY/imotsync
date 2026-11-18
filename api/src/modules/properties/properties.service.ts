@@ -5,6 +5,7 @@ import { enqueueUpdatesForProperty } from '../../jobs/enqueue.js';
 import {
   deletePropertyRow,
   deletionBlocker,
+  describeScheduledDeletion,
   requestPropertyDeletion,
 } from '../../jobs/property-deletion.js';
 import { createQueueRepository } from '../../jobs/queue.repository.js';
@@ -12,6 +13,7 @@ import { queueTransaction } from '../../jobs/transaction.js';
 import { isDuplicateKeyError } from '../../lib/db-errors.js';
 import { conflict, notFound, validationError } from '../../lib/http-error.js';
 import { createImageRepository } from '../images/images.repository.js';
+import { createJobRepository } from '../jobs/jobs.repository.js';
 import { DEFAULT_PAGE_SIZE, DEFAULT_SORT, parseSort, type PropertySort } from './list-query.js';
 import {
   toPropertyColumns,
@@ -97,7 +99,11 @@ export function createPropertiesService(deps: PropertiesServiceDeps) {
       createImageRepository(db).listForProperty(id),
       properties.listingsFor([id]),
     ]);
-    return toPropertyDetail(row, images, listings);
+    const lastSent = await createJobRepository(db).lastSentFor(listings.map((l) => l.id));
+    const deletion = row.delete_requested_at
+      ? describeScheduledDeletion(listings, { removedRetentionDays })
+      : null;
+    return toPropertyDetail({ row, images, listings, lastSent, deletion });
   }
 
   return {

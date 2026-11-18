@@ -1,5 +1,10 @@
-import { ChangeDetectionStrategy, Component, ElementRef, viewChild } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, viewChild } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { ButtonModule } from 'primeng/button';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { ToastModule } from 'primeng/toast';
+
+import { AuthSession } from '../core/auth/auth-session';
 
 export interface NavItem {
   label: string;
@@ -8,14 +13,29 @@ export interface NavItem {
   icon: string;
 }
 
-/** App layout: skip link, top bar with the brand and main navigation, page content, footer. */
+/**
+ * App layout for signed-in users: skip link, top bar with the brand, main navigation and the user,
+ * page content, footer, and the app-wide toast and confirmation dialog.
+ */
 @Component({
   selector: 'app-shell',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet,
+    ButtonModule,
+    ConfirmDialogModule,
+    ToastModule,
+  ],
   templateUrl: './shell.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Shell {
+  private readonly session = inject(AuthSession);
+  private readonly router = inject(Router);
+
+  protected readonly user = this.session.user;
+
   protected readonly navItems: readonly NavItem[] = [
     { label: 'Dashboard', path: '/dashboard', icon: 'pi pi-objects-column' },
     { label: 'Properties', path: '/properties', icon: 'pi pi-building' },
@@ -32,5 +52,10 @@ export class Shell {
   protected skipToMainContent(event: Event): void {
     event.preventDefault();
     this.mainContent().nativeElement.focus();
+  }
+
+  protected logout(): void {
+    this.session.end();
+    void this.router.navigateByUrl('/login');
   }
 }

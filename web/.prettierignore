@@ -5,3 +5,5 @@ coverage
 .angular
 out-tsc
 package-lock.json
+# Generated from ../api/openapi.json by npm run api:types.
+src/app/core/api/schema.d.ts

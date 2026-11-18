@@ -7,6 +7,7 @@ import type {
   PropertyStatus,
   PropertyType,
 } from '../../db/types.js';
+import type { ScheduledDeletion } from '../../jobs/property-deletion.js';
 import { toImageDto, type PropertyImageDto } from '../images/images.mappers.js';
 import type {
   CoverImage,
@@ -31,6 +32,8 @@ export interface PortalStatusDto {
 export interface PortalListingDto extends PortalStatusDto {
   id: number;
   externalId: string | null;
+  /** When it was last sent to the portal (its newest successful publish or update), or null. */
+  lastSentAt: string | null;
   updatedAt: string;
 }
 
@@ -62,10 +65,19 @@ export interface PropertySummaryDto {
   updatedAt: string;
 }
 
+/** A requested deletion that has not happened yet (see describeScheduledDeletion). */
+export interface DeletionDto {
+  requestedAt: string;
+  state: ScheduledDeletion['state'];
+  portals: string[];
+  deletesAfter: string | null;
+}
+
 export interface PropertyDetailDto extends Omit<PropertySummaryDto, 'portals'> {
   description: string | null;
   images: PropertyImageDto[];
   portals: PortalListingDto[];
+  deletion: DeletionDto | null;
 }
 
 export interface PaginationMeta {
@@ -105,7 +117,11 @@ function toPortalStatus(row: PortalListingRow): PortalStatusDto {
   };
 }
 
-export function toPortalListing(row: PortalListingRow): PortalListingDto {
+/** `lastSent`: listing id → when it was last sent (jobs repository's lastSentFor). */
+export function toPortalListing(
+  row: PortalListingRow,
+  lastSent: ReadonlyMap<number, Date>,
+): PortalListingDto {
   return {
     id: row.id,
     portal: row.portal,
@@ -113,6 +129,7 @@ export function toPortalListing(row: PortalListingRow): PortalListingDto {
     externalId: row.external_id,
     lastError: row.last_error,
     publishedAt: isoOrNull(row.published_at),
+    lastSentAt: isoOrNull(lastSent.get(row.id) ?? null),
     updatedAt: iso(row.updated_at),
   };
 }
@@ -158,22 +175,43 @@ export function toPropertySummary(
   };
 }
 
-/** `images` must be in display order (sort_order, id). */
-export function toPropertyDetail(
-  row: PropertyWithCreatorRow,
-  images: readonly PropertyImageRow[],
-  listings: readonly PortalListingRow[],
-): PropertyDetailDto {
+export interface PropertyDetailSource {
+  row: PropertyWithCreatorRow;
+  /** In display order (sort_order, id). */
+  images: readonly PropertyImageRow[];
+  listings: readonly PortalListingRow[];
+  /** Listing id → when it was last sent (jobs repository's lastSentFor). */
+  lastSent: ReadonlyMap<number, Date>;
+  /** What a requested deletion waits for; shown only while one is requested. */
+  deletion: ScheduledDeletion | null;
+}
+
+export function toPropertyDetail({
+  row,
+  images,
+  listings,
+  lastSent,
+  deletion: scheduled,
+}: PropertyDetailSource): PropertyDetailDto {
   return {
     ...baseFields(row),
     coverImageUrl: images[0]?.url ?? null,
     imageCount: images.length,
-    portals: listings.map(toPortalListing),
+    portals: listings.map((listing) => toPortalListing(listing, lastSent)),
     createdBy: createdBy(row),
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     description: row.description,
     images: images.map(toImageDto),
+    deletion:
+      row.delete_requested_at && scheduled
+        ? {
+            requestedAt: iso(row.delete_requested_at),
+            state: scheduled.state,
+            portals: scheduled.portals,
+            deletesAfter: isoOrNull(scheduled.deletesAfter),
+          }
+        : null,
   };
 }
 

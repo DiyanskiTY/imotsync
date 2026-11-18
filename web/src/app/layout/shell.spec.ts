@@ -1,18 +1,36 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { ConfirmationService, MessageService } from 'primeng/api';
+
+import type { User } from '../core/api/models';
+import { AuthSession } from '../core/auth/auth-session';
 
 import { Shell } from './shell';
 
 @Component({ template: '', changeDetection: ChangeDetectionStrategy.OnPush })
 class BlankPage {}
 
+const broker: User = {
+  id: 2,
+  email: 'broker@example.test',
+  fullName: 'Demo Broker',
+  role: 'broker',
+};
+
 describe('Shell', () => {
+  let end: ReturnType<typeof vi.fn<() => boolean>>;
+
   beforeEach(() => {
+    end = vi.fn(() => true);
     TestBed.configureTestingModule({
       providers: [
+        MessageService,
+        ConfirmationService,
+        { provide: AuthSession, useValue: { user: signal(broker), end } },
         provideRouter([
+          { path: 'login', component: BlankPage },
           {
             path: '',
             component: Shell,
@@ -86,5 +104,19 @@ describe('Shell', () => {
     expect(click.defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(main);
     expect(TestBed.inject(Router).url).toBe('/properties');
+  });
+
+  it('shows the signed-in user and signs out', async () => {
+    const root = await renderAt('/dashboard');
+    expect(root.querySelector('[data-testid="current-user"]')?.textContent).toContain(
+      'Demo Broker',
+    );
+
+    root.querySelector<HTMLButtonElement>('[data-testid="logout"] button')?.click();
+    await TestBed.inject(Router).navigated;
+    await new Promise((resolve) => setTimeout(resolve));
+
+    expect(end).toHaveBeenCalledOnce();
+    expect(TestBed.inject(Router).url).toBe('/login');
   });
 });

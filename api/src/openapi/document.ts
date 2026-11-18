@@ -312,7 +312,10 @@ const photos: Record<string, Operation> = {
     tags: ['Photos'],
     parameters: [parameter('PropertyId'), parameter('ImageId')],
     responses: {
-      '204': { description: 'Deleted (the row and the file).' },
+      '204': {
+        description:
+          "Deleted. The row goes at once; the worker's photo sweep deletes the file once nothing refers to it.",
+      },
       '400': response('BadRequest'),
       '404': response('NotFound'),
       ...AUTHENTICATED,

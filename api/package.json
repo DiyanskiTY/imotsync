@@ -1,6 +1,6 @@
 {
   "name": "imotsync-api",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "ImotSync REST API: prepare a property once, publish it to several real estate portals.",
   "type": "module",
@@ -28,7 +28,8 @@
     "db:status": "tsx src/db/migrate.ts status",
     "db:seed": "tsx src/db/seed.ts",
     "db:reset": "tsx src/db/migrate.ts reset && tsx src/db/seed.ts",
-    "geo:realistimo": "tsx src/portals/realistimo/download-geo.ts"
+    "geo:realistimo": "tsx src/portals/realistimo/download-geo.ts",
+    "openapi:export": "tsx src/openapi/export.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",

@@ -584,6 +584,19 @@ describe('POST /api/properties/bulk/delete', () => {
       ).toEqual([]);
     }
     expect(await fx.db('properties').where({ id: old })).toEqual([]);
+
+    // The property says what it is waiting for and when it goes.
+    const detail = await request(app).get(`/api/properties/${single}`).set(auth);
+    expectDocumented(detail, 'get', '/properties/{id}');
+    const served = await fx.db('portal_listings').where({ property_id: single }).first();
+    expect((detail.body as PropertyDetailDto).deletion).toEqual({
+      requestedAt: expect.any(String) as string,
+      state: 'feed_retention',
+      portals: ['bazar'],
+      deletesAfter: new Date(
+        (served as { payload_updated_at: Date }).payload_updated_at.getTime() + 30 * 86_400_000,
+      ).toISOString(),
+    });
   });
 
   it('reports an unexpected error for its property and goes on with the others', async () => {

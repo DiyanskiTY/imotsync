@@ -45,6 +45,24 @@
           }
         </ul>
       </nav>
+
+      @if (user(); as currentUser) {
+        <div class="ml-auto flex shrink-0 items-center gap-3">
+          <span class="hidden text-right text-sm leading-tight md:block" data-testid="current-user">
+            <span class="block font-medium text-color">{{ currentUser.fullName }}</span>
+            <span class="block text-xs text-muted-color capitalize">{{ currentUser.role }}</span>
+          </span>
+          <p-button
+            data-testid="logout"
+            icon="pi pi-sign-out"
+            label="Sign out"
+            [text]="true"
+            severity="secondary"
+            size="small"
+            (onClick)="logout()"
+          />
+        </div>
+      }
     </div>
   </header>
 
@@ -66,3 +84,6 @@
     </div>
   </footer>
 </div>
+
+<p-toast position="top-right" />
+<p-confirmdialog />

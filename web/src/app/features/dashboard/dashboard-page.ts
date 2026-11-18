@@ -17,6 +17,7 @@ import {
 } from '../../core/health/health-api';
 import { formatUptime } from '../../shared/format-uptime';
 import { PageHeader } from '../../shared/page-header';
+import { PortalFeeds } from './portal-feeds';
 
 export type HealthState =
   | { kind: 'loading' }
@@ -50,6 +51,7 @@ interface Step {
     SkeletonModule,
     TagModule,
     PageHeader,
+    PortalFeeds,
   ],
   templateUrl: './dashboard-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

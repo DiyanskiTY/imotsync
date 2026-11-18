@@ -1,0 +1,325 @@
+<app-page-header
+  heading="Properties"
+  description="Every property once, with its status on each portal."
+>
+  <p-button label="New property" icon="pi pi-plus" routerLink="/properties/new" />
+</app-page-header>
+
+<form
+  [formGroup]="filters"
+  role="search"
+  aria-label="Filter properties"
+  class="mb-4 grid gap-3 rounded-border border border-surface bg-surface-0 p-4 sm:grid-cols-2 lg:grid-cols-4"
+  (submit)="$event.preventDefault()"
+>
+  <div class="flex flex-col gap-1 sm:col-span-2">
+    <label for="filter-q" class="text-sm font-medium text-color">Search</label>
+    <p-iconfield>
+      <p-inputicon styleClass="pi pi-search" />
+      <input
+        pInputText
+        id="filter-q"
+        type="search"
+        formControlName="q"
+        placeholder="Reference, title, city or district"
+        data-testid="filter-q"
+        class="w-full"
+      />
+    </p-iconfield>
+  </div>
+  <div class="flex flex-col gap-1">
+    <label for="filter-city" class="text-sm font-medium text-color">City</label>
+    <input pInputText id="filter-city" formControlName="city" placeholder="Any city" />
+  </div>
+  <div class="flex flex-col gap-1">
+    <label for="filter-status" class="text-sm font-medium text-color">Status</label>
+    <p-multiselect
+      inputId="filter-status"
+      formControlName="status"
+      [options]="statusOptions"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Any status"
+      display="chip"
+      [showToggleAll]="false"
+      styleClass="w-full"
+    />
+  </div>
+  <div class="flex flex-col gap-1">
+    <label for="filter-type" class="text-sm font-medium text-color">Type</label>
+    <p-multiselect
+      inputId="filter-type"
+      formControlName="type"
+      [options]="typeOptions"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Any type"
+      [maxSelectedLabels]="2"
+      styleClass="w-full"
+    />
+  </div>
+  <div class="flex flex-col gap-1">
+    <label for="filter-deal" class="text-sm font-medium text-color">Deal</label>
+    <p-multiselect
+      inputId="filter-deal"
+      formControlName="dealType"
+      [options]="dealOptions"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Sale or rent"
+      [showToggleAll]="false"
+      styleClass="w-full"
+    />
+  </div>
+  <div class="flex flex-col gap-1">
+    <label for="filter-portal" class="text-sm font-medium text-color">Portal</label>
+    <p-select
+      inputId="filter-portal"
+      formControlName="portal"
+      [options]="portalOptions()"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Any portal"
+      [showClear]="true"
+      styleClass="w-full"
+    />
+  </div>
+  <div class="flex flex-col gap-1">
+    <label for="filter-portal-status" class="text-sm font-medium text-color">
+      Status on portal
+    </label>
+    <p-multiselect
+      inputId="filter-portal-status"
+      formControlName="portalStatus"
+      [options]="listingStatusOptions"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Any listing status"
+      [maxSelectedLabels]="2"
+      styleClass="w-full"
+    />
+  </div>
+  <div class="flex flex-col gap-1">
+    <span id="filter-price-label" class="text-sm font-medium text-color">Price (EUR)</span>
+    <div class="flex items-center gap-2">
+      <p-inputnumber
+        formControlName="priceMin"
+        placeholder="Min"
+        [min]="0"
+        [maxFractionDigits]="0"
+        ariaLabel="Minimum price"
+        styleClass="w-full"
+        inputStyleClass="w-full"
+      />
+      <span aria-hidden="true" class="text-muted-color">–</span>
+      <p-inputnumber
+        formControlName="priceMax"
+        placeholder="Max"
+        [min]="0"
+        [maxFractionDigits]="0"
+        ariaLabel="Maximum price"
+        styleClass="w-full"
+        inputStyleClass="w-full"
+      />
+    </div>
+  </div>
+  <div class="flex items-end">
+    <p-button
+      label="Clear filters"
+      icon="pi pi-filter-slash"
+      severity="secondary"
+      [text]="true"
+      [disabled]="!list.hasFilters()"
+      (onClick)="list.clearFilters()"
+    />
+  </div>
+</form>
+
+@if (selection().length > 0) {
+  <div
+    class="mb-4 flex flex-wrap items-center gap-3 rounded-border border border-primary bg-highlight px-4 py-2"
+    role="region"
+    aria-label="Bulk actions"
+  >
+    <span class="font-medium" data-testid="selection-count">{{ selection().length }} selected</span>
+    <p-button
+      label="Publish to…"
+      icon="pi pi-send"
+      size="small"
+      (onClick)="bulkPublishVisible.set(true)"
+    />
+    <p-button
+      data-testid="bulk-delete"
+      label="Delete"
+      icon="pi pi-trash"
+      size="small"
+      severity="danger"
+      [outlined]="true"
+      [loading]="deleting()"
+      (onClick)="confirmBulkDelete()"
+    />
+    <p-button
+      label="Clear selection"
+      size="small"
+      severity="secondary"
+      [text]="true"
+      (onClick)="selection.set([])"
+    />
+  </div>
+}
+
+@if (list.result().error; as error) {
+  <p-message severity="error" styleClass="mb-4" data-testid="list-error">
+    <span>{{ error.message }}</span>
+    <p-button label="Try again" [link]="true" size="small" (onClick)="list.reload()" />
+  </p-message>
+}
+
+<p-table
+  [value]="list.rows()"
+  dataKey="id"
+  [lazy]="true"
+  [lazyLoadOnInit]="false"
+  [loading]="list.result().loading"
+  [paginator]="true"
+  [rows]="list.pageSize()"
+  [first]="list.first()"
+  [totalRecords]="list.total()"
+  [rowsPerPageOptions]="[10, 20, 50, 100]"
+  [showCurrentPageReport]="true"
+  currentPageReportTemplate="{first}–{last} of {totalRecords}"
+  [sortField]="list.sortField()"
+  [sortOrder]="list.sortOrder()"
+  [selection]="selection()"
+  (selectionChange)="selection.set($event)"
+  (onPage)="list.onPage($event)"
+  (onSort)="list.onSort($event)"
+  [rowHover]="true"
+  styleClass="rounded-border border border-surface overflow-hidden"
+  [tableStyle]="{ 'min-width': '64rem' }"
+>
+  <ng-template #header>
+    <tr>
+      <th class="w-12"><p-tableHeaderCheckbox ariaLabel="Select all on this page" /></th>
+      <th class="w-20"><span class="sr-only">Photo</span></th>
+      <th pSortableColumn="refCode" data-testid="sort-refCode" class="whitespace-nowrap">
+        Reference <p-sortIcon field="refCode" />
+      </th>
+      <th>Property</th>
+      <th pSortableColumn="city" data-testid="sort-city" class="whitespace-nowrap">
+        Location <p-sortIcon field="city" />
+      </th>
+      <th pSortableColumn="price" data-testid="sort-price" class="text-right whitespace-nowrap">
+        Price <p-sortIcon field="price" />
+      </th>
+      <th pSortableColumn="areaM2" data-testid="sort-areaM2" class="text-right whitespace-nowrap">
+        Area <p-sortIcon field="areaM2" />
+      </th>
+      <th>Status</th>
+      <th>Portals</th>
+      <th pSortableColumn="updatedAt" data-testid="sort-updatedAt" class="whitespace-nowrap">
+        Updated <p-sortIcon field="updatedAt" />
+      </th>
+    </tr>
+  </ng-template>
+
+  <ng-template #body let-property [appRowType]="list.rows()">
+    <tr [attr.data-testid]="'property-row-' + property.id">
+      <td [attr.data-testid]="'select-' + property.id">
+        <p-tableCheckbox [value]="property" [ariaLabel]="'Select ' + property.refCode" />
+      </td>
+      <td>
+        @if (property.coverImageUrl) {
+          <app-photo
+            [src]="property.coverImageUrl"
+            [alt]="'Cover photo of ' + property.refCode"
+            class="h-12 w-16 rounded-border"
+          />
+        } @else {
+          <span
+            class="flex h-12 w-16 items-center justify-center rounded-border bg-surface-100 text-muted-color"
+          >
+            <i class="pi pi-image" aria-hidden="true"></i>
+            <span class="sr-only">No photos</span>
+          </span>
+        }
+      </td>
+      <td class="whitespace-nowrap">
+        <a
+          [routerLink]="['/properties', property.id]"
+          class="font-medium text-primary hover:underline"
+        >
+          {{ property.refCode }}
+        </a>
+      </td>
+      <td class="max-w-64">
+        <div class="truncate font-medium text-color" [title]="property.title ?? ''">
+          {{ property.title ?? 'Untitled' }}
+        </div>
+        <div class="text-sm text-muted-color">
+          {{ typeLabels[property.type] }} · {{ dealLabels[property.dealType] }}
+          @if (property.rooms !== null) {
+            · {{ property.rooms }} rooms
+          }
+        </div>
+      </td>
+      <td>
+        <div class="text-color">{{ property.city }}</div>
+        @if (property.district) {
+          <div class="text-sm text-muted-color">{{ property.district }}</div>
+        }
+      </td>
+      <td class="text-right whitespace-nowrap">
+        @if (property.price !== null) {
+          {{ property.price | currency: property.currency : 'symbol' : '1.0-0' }}
+        } @else {
+          <span class="text-muted-color">—</span>
+        }
+      </td>
+      <td class="text-right whitespace-nowrap">
+        @if (property.areaM2 !== null) {
+          {{ property.areaM2 | number: '1.0-2' }} m²
+        } @else {
+          <span class="text-muted-color">—</span>
+        }
+      </td>
+      <td><app-status-tag [status]="property.status" /></td>
+      <td>
+        <div class="flex flex-col items-start gap-1 whitespace-nowrap">
+          @for (listing of property.portals; track listing.portal) {
+            <app-status-tag
+              [status]="listing.status"
+              [prefix]="portals.displayName(listing.portal)"
+              [detail]="listing.lastError"
+            />
+          } @empty {
+            <span class="text-sm text-muted-color">Not published</span>
+          }
+        </div>
+      </td>
+      <td class="text-sm whitespace-nowrap text-muted-color">
+        {{ property.updatedAt | date: 'd MMM y, HH:mm' }}
+      </td>
+    </tr>
+  </ng-template>
+
+  <ng-template #emptymessage>
+    <tr>
+      <td colspan="10" class="py-10 text-center text-muted-color">
+        @if (list.result().loading) {
+          Loading properties…
+        } @else if (list.hasFilters()) {
+          No properties match these filters.
+        } @else {
+          No properties yet. Create the first one with “New property”.
+        }
+      </td>
+    </tr>
+  </ng-template>
+</p-table>
+
+<app-bulk-publish-dialog
+  [(visible)]="bulkPublishVisible"
+  [properties]="selection()"
+  (finished)="afterBulkPublish()"
+/>

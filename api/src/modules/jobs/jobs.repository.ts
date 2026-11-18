@@ -95,6 +95,28 @@ export function createJobRepository(db: Knex) {
     },
 
     /** The jobs with these ids, oldest first. */
+    /**
+     * When each listing was last sent to its portal: the finish time of its newest successful
+     * publish or update job. Listings that never had one are missing from the map.
+     */
+    async lastSentFor(listingIds: readonly number[]): Promise<Map<number, Date>> {
+      if (listingIds.length === 0) return new Map();
+      const rows = await db('jobs')
+        .whereIn('portal_listing_id', [...listingIds])
+        .where('status', 'succeeded')
+        .whereIn('action', ['publish', 'update'])
+        .groupBy('portal_listing_id')
+        .select<{ portal_listing_id: number; last_sent_at: Date | null }[]>(
+          'portal_listing_id',
+          db.raw('MAX(finished_at) as last_sent_at'),
+        );
+      return new Map(
+        rows.flatMap((row) =>
+          row.last_sent_at ? [[row.portal_listing_id, row.last_sent_at] as const] : [],
+        ),
+      );
+    },
+
     async findByIds(ids: readonly number[]): Promise<JobWithContextRow[]> {
       if (ids.length === 0) return [];
       return withContext()

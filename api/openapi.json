@@ -1,0 +1,3688 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ImotSync API",
+    "version": "0.4.0",
+    "description": "Prepare a property once and publish it to several real estate portals through their official import feeds.\n\n**Authentication.** `POST /auth/login` returns a JWT. Send it as `Authorization: Bearer <token>` (in this page: **Authorize**). Every operation needs it except the health check, login, this document and the feeds (`/feeds/{portal}/{token}.xml`, outside `/api`, protected by the token in the path).\n\n**Errors** always look like `{\"error\":{\"code\",\"message\",\"details\"?}}`; `details` lists per-field problems for `VALIDATION_ERROR`.\n\n**Conventions.** JSON fields are camelCase, times are ISO 8601 in UTC, prices and areas are numbers."
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "This server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Login and the current user."
+    },
+    {
+      "name": "Properties",
+      "description": "Properties and their per-portal status."
+    },
+    {
+      "name": "Photos",
+      "description": "Property photos."
+    },
+    {
+      "name": "Publishing",
+      "description": "Portals, the pre-publish check, publishing and removal. Requests queue jobs; the worker carries them out."
+    },
+    {
+      "name": "Jobs",
+      "description": "The job log: every portal operation and its attempts."
+    },
+    {
+      "name": "Feeds",
+      "description": "The feeds feed portals download, outside /api and without a login (FEED_TOKEN in the path)."
+    },
+    {
+      "name": "System",
+      "description": "Health check and this document."
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Health check",
+        "description": "Reports whether the API can reach its database.",
+        "tags": [
+          "System"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "API and database are up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "description": "The database is down or too slow.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenApiDocument",
+        "summary": "This OpenAPI document",
+        "tags": [
+          "System"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3.1 document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "openapi",
+                    "info",
+                    "paths"
+                  ],
+                  "properties": {
+                    "openapi": {
+                      "type": "string",
+                      "const": "3.1.0"
+                    },
+                    "info": {
+                      "type": "object"
+                    },
+                    "paths": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "login",
+        "summary": "Log in",
+        "description": "Exchanges email and password for an access token. Limited to about 10 attempts per 15 minutes per client IP; the RateLimit headers report the state.",
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Logged in.",
+            "headers": {
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimitPolicy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/InvalidCredentials"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "getCurrentUser",
+        "summary": "Current user",
+        "description": "The user the token belongs to.",
+        "tags": [
+          "Auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "The signed-in user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/properties": {
+      "get": {
+        "operationId": "listProperties",
+        "summary": "List properties",
+        "description": "Paginated, filtered and sorted. Unknown query parameters are rejected with 400.",
+        "tags": [
+          "Properties"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number, from 1.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Properties per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search text: matches part of the reference code, title, city or district, case-insensitively (Cyrillic included). % and _ match themselves.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "examples": [
+                "Лозенец"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Property status. Comma-separated, any of: draft, active, archived.",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "active",
+                  "archived"
+                ]
+              },
+              "uniqueItems": true
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Property type. Comma-separated, any of: apartment, house, office, shop, land, garage, other.",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "apartment",
+                  "house",
+                  "office",
+                  "shop",
+                  "land",
+                  "garage",
+                  "other"
+                ]
+              },
+              "uniqueItems": true
+            }
+          },
+          {
+            "name": "dealType",
+            "in": "query",
+            "description": "Deal type. Comma-separated, any of: sale, rent.",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "sale",
+                  "rent"
+                ]
+              },
+              "uniqueItems": true
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "description": "Exact city name, case-insensitive.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "examples": [
+                "Sofia"
+              ]
+            }
+          },
+          {
+            "name": "priceMin",
+            "in": "query",
+            "description": "Lowest price (inclusive). Properties without a price are left out.",
+            "schema": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "priceMax",
+            "in": "query",
+            "description": "Highest price (inclusive); not below priceMin.",
+            "schema": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "portal",
+            "in": "query",
+            "description": "Only properties with a listing on this portal (in any status, or in portalStatus).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "realistimo",
+                "bazar",
+                "demo"
+              ]
+            }
+          },
+          {
+            "name": "portalStatus",
+            "in": "query",
+            "description": "Only properties with a listing in one of these statuses: on `portal` if given, otherwise on any portal. Comma-separated, any of: draft, pending, published, error, removed.",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "pending",
+                  "published",
+                  "error",
+                  "removed"
+                ]
+              },
+              "uniqueItems": true
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort field; a leading \"-\" sorts descending. Ties are broken by id in the same direction.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "-createdAt",
+                "updatedAt",
+                "-updatedAt",
+                "price",
+                "-price",
+                "areaM2",
+                "-areaM2",
+                "refCode",
+                "-refCode",
+                "city",
+                "-city"
+              ],
+              "default": "-updatedAt"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of properties.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProperty",
+        "summary": "Create a property",
+        "description": "The signed-in user is recorded as the creator.",
+        "tags": [
+          "Properties"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/properties/{id}": {
+      "get": {
+        "operationId": "getProperty",
+        "summary": "Get a property",
+        "description": "With its photos in display order and its listing on every portal.",
+        "tags": [
+          "Properties"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PropertyId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The property.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateProperty",
+        "summary": "Update a property",
+        "tags": [
+          "Properties"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PropertyId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated property.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProperty",
+        "summary": "Delete a property",
+        "description": "Deletes the property with its photos, portal listings and jobs (the photo files are deleted later by the worker, once no stored feed entry links to them). Refused with 409 while a portal listing is pending, published, or in error but still online: unpublish it first (POST /properties/{id}/unpublish), or use POST /properties/bulk/delete, which removes it from the portals and deletes it afterwards. When nothing is online but a feed still serves the removal of one of its listings (a Bazar.bg item kept as out of stock for BAZAR_REMOVED_RETENTION_DAYS), the property is archived instead and answered with 202: the worker deletes it once that period has passed (setting its status back to active cancels this).",
+        "tags": [
+          "Properties"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PropertyId"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Archived; the worker deletes it once its removal has been served long enough.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionScheduledResponse"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Deleted."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/properties/{id}/images": {
+      "post": {
+        "operationId": "uploadPropertyImages",
+        "summary": "Upload photos",
+        "description": "Send 1 to 20 files in the multipart field \"photos\", each at most 15 MB; any other field, text fields included, gets 400 naming it. The content decides, not the file name or declared type: JPEG, PNG, WebP or AVIF images are accepted (415 otherwise), with at least 400 px on the shorter side and at most 50 megapixels (400 otherwise). Every photo is turned upright, stripped of all metadata (including GPS), fitted inside 2048x2048 px and stored as JPEG; the stored photo keeps at least 400 px on its shorter side too, so very long, narrow images are refused (400). New photos go after the existing ones. A property has at most 40 photos (409 otherwise). The server handles a few uploads at a time; when all are busy it answers 429 with Retry-After. The whole body has to arrive within 60 seconds (408 otherwise, and the connection is closed); on a slow connection, send fewer photos per request.",
+        "tags": [
+          "Photos"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PropertyId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "photos"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "photos": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "items": {
+                      "type": "string",
+                      "format": "binary",
+                      "contentMediaType": "application/octet-stream"
+                    }
+                  }
+                }
+              },
+              "encoding": {
+                "photos": {
+                  "contentType": "image/jpeg, image/png, image/webp, image/avif"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new photos, in display order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyImageList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/UploadTimedOut"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/UploadsBusy"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/properties/{id}/images/order": {
+      "put": {
+        "operationId": "reorderPropertyImages",
+        "summary": "Reorder photos",
+        "description": "Sets the display order. imageIds must list each of the property's photos exactly once; the first becomes the cover photo.",
+        "tags": [
+          "Photos"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PropertyId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyImageOrder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "All photos of the property, in the new order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyImageList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/properties/{id}/images/{imageId}": {
+      "delete": {
+        "operationId": "deletePropertyImage",
+        "summary": "Delete a photo",
+        "tags": [
+          "Photos"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PropertyId"
+          },
+          {
+            "$ref": "#/components/parameters/ImageId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted. The row goes at once; the worker's photo sweep deletes the file once nothing refers to it."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/portals": {
+      "get": {
+        "operationId": "listPortals",
+        "summary": "List portals",
+        "description": "The portals this server publishes to, in display order. Feed portals come with the feed URL to give the portal.",
+        "tags": [
+          "Publishing"
+        ],
+        "responses": {
+          "200": {
+            "description": "The registered portals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/properties/{id}/checks": {
+      "get": {
+        "operationId": "checkProperty",
+        "summary": "Pre-publish check",
+        "description": "Runs each portal's rules against the property's current data and lists what would keep it from that portal. Changes nothing and sends nothing.",
+        "tags": [
+          "Publishing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PropertyId"
+          },
+          {
+            "name": "portals",
+            "in": "query",
+            "description": "Portal keys (GET /portals), comma-separated. Default: every registered portal.",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One check per portal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalCheckList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/properties/{id}/publish": {
+      "post": {
+        "operationId": "publishProperty",
+        "summary": "Publish to portals",
+        "description": "Runs every selected portal's pre-publish check first: any problem answers 422 NOT_READY with the problems in details, and nothing is queued. Otherwise a draft property becomes active, and each portal gets a job that the worker carries out: a publish job for a new, draft, removed or never-published listing; an update job for a listing that is already online; a request for a listing that has a queued job is merged into that job (jobs always send the current data). An archived property answers 409.",
+        "tags": [
+          "Publishing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PropertyId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Queued. The listings are pending until the worker has run the jobs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/NotReady"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/properties/{id}/unpublish": {
+      "post": {
+        "operationId": "unpublishProperty",
+        "summary": "Remove from portals",
+        "description": "Queues remove jobs for the listings on the given portals (default: all of them) that are online, pending or in error. Draft listings, which never went out, are deleted; removed ones stay as they are.",
+        "tags": [
+          "Publishing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PropertyId"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnpublishRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/properties/bulk/publish": {
+      "post": {
+        "operationId": "bulkPublishProperties",
+        "summary": "Publish several properties",
+        "description": "Publishes up to 100 properties to the same portals, each as POST /properties/{id}/publish would. A property that is not ready, archived or missing is reported with ok: false and skipped; the others are queued.",
+        "tags": [
+          "Publishing"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkPublishRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "One result per property, in the order given.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkPublishResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/properties/bulk/delete": {
+      "post": {
+        "operationId": "bulkDeleteProperties",
+        "summary": "Delete several properties",
+        "description": "Deletes up to 100 properties, one at a time. One that is not online anywhere is deleted at once, with its photos (the files are deleted later by the worker). One that is (or may be) online on a portal is archived and gets remove jobs; the worker deletes it once every portal has removed it. One whose removal a feed still serves (a Bazar.bg item kept as out of stock) is archived; the worker deletes it once that period has passed. An unexpected error is reported for its property (result error) and the others go ahead.",
+        "tags": [
+          "Publishing"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDeleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "One result per property, in the order given.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkDeleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/jobs": {
+      "get": {
+        "operationId": "listJobs",
+        "summary": "Job log",
+        "description": "Every publish, update and remove job with its attempts, schedule and outcome, newest first by default. Unknown query parameters are rejected with 400.",
+        "tags": [
+          "Jobs"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number, from 1.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Jobs per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Job status. Comma-separated, any of: queued, running, succeeded, failed.",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "succeeded",
+                  "failed"
+                ]
+              },
+              "uniqueItems": true
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "description": "Job action. Comma-separated, any of: publish, update, remove.",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "publish",
+                  "update",
+                  "remove"
+                ]
+              },
+              "uniqueItems": true
+            }
+          },
+          {
+            "name": "portal",
+            "in": "query",
+            "description": "Portal keys, comma-separated.",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            }
+          },
+          {
+            "name": "propertyId",
+            "in": "query",
+            "description": "Only this property's jobs.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort field; a leading \"-\" sorts descending. Ties are broken by id in the same direction.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "-createdAt",
+                "updatedAt",
+                "-updatedAt",
+                "runAfter",
+                "-runAfter",
+                "finishedAt",
+                "-finishedAt",
+                "id",
+                "-id"
+              ],
+              "default": "-createdAt"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of jobs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "operationId": "getJob",
+        "summary": "Get a job",
+        "tags": [
+          "Jobs"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/jobs/{id}/retry": {
+      "post": {
+        "operationId": "retryJob",
+        "summary": "Retry a failed job",
+        "description": "Queues a new job with the same action for the same listing; the failed job stays in the log. Only for the listing's newest job, when it failed and nothing else is queued or running for the listing (409 otherwise). Takes no body.",
+        "tags": [
+          "Jobs"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The new job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/feeds/{portal}/{token}.xml": {
+      "servers": [
+        {
+          "url": "/",
+          "description": "This server (the feeds are outside /api)"
+        }
+      ],
+      "get": {
+        "operationId": "getFeed",
+        "summary": "A feed portal's feed",
+        "description": "The import feed a feed portal downloads, built from the payloads the last successful jobs stored (GET /portals gives each feed URL). Public because portals send no credentials: the FEED_TOKEN in the path protects it, so keep the URL secret. Realistimo: its XML feed format, with the published offers. Bazar.bg: Google Merchant RSS 2.0, with the published listings in stock and removed ones out of stock for BAZAR_REMOVED_RETENTION_DAYS. Conditional requests with If-None-Match or If-Modified-Since get 304 when nothing changed.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "portal",
+            "in": "path",
+            "required": true,
+            "description": "Key of a feed portal.",
+            "schema": {
+              "type": "string",
+              "examples": [
+                "realistimo",
+                "bazar"
+              ]
+            }
+          },
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "description": "FEED_TOKEN.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "description": "ETag of a copy the client holds.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Modified-Since",
+            "in": "header",
+            "description": "Last-Modified of a copy the client holds (ignored with If-None-Match).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The feed document (XML, UTF-8).",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Last-Modified": {
+                "$ref": "#/components/headers/LastModified"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoCache"
+              }
+            },
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified: the copy named by If-None-Match or If-Modified-Since is current.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Last-Modified": {
+                "$ref": "#/components/headers/LastModified"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoCache"
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown portal, a push portal (it has no feed), a wrong token, or any other path under /feeds: always the same plain-text answer.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "const": "Not Found"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "The accessToken from POST /auth/login."
+      }
+    },
+    "schemas": {
+      "ErrorDetail": {
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "additionalProperties": false,
+        "description": "One problem with one field.",
+        "properties": {
+          "portal": {
+            "type": "string",
+            "description": "NOT_READY only: the portal whose rules the field breaks.",
+            "examples": [
+              "demo"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "examples": [
+              "price"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "examples": [
+              "must be a number from 0 to 9999999999.99"
+            ]
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "INVALID_JSON",
+                  "UNAUTHORIZED",
+                  "INVALID_CREDENTIALS",
+                  "FORBIDDEN",
+                  "NOT_FOUND",
+                  "REQUEST_TIMEOUT",
+                  "CONFLICT",
+                  "PAYLOAD_TOO_LARGE",
+                  "UNSUPPORTED_MEDIA_TYPE",
+                  "TOO_MANY_REQUESTS",
+                  "NOT_READY",
+                  "INTERNAL_ERROR"
+                ],
+                "description": "Stable, machine-readable code; the response descriptions say which codes each status uses.",
+                "examples": [
+                  "VALIDATION_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation."
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                },
+                "description": "Per-field problems (VALIDATION_ERROR, per file for photo uploads, per portal and field for NOT_READY)."
+              }
+            }
+          }
+        },
+        "description": "Every error response has this shape."
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status",
+          "db",
+          "version",
+          "uptimeSeconds"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ]
+          },
+          "db": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "examples": [
+              "0.2.0"
+            ]
+          },
+          "uptimeSeconds": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "fullName",
+          "role"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "User id.",
+            "examples": [
+              42
+            ]
+          },
+          "email": {
+            "type": "string",
+            "examples": [
+              "admin@imotsync.local"
+            ]
+          },
+          "fullName": {
+            "type": "string",
+            "examples": [
+              "Demo Admin"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "broker"
+            ]
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Compared trimmed and case-insensitively.",
+            "examples": [
+              "admin@imotsync.local"
+            ]
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "examples": [
+              "demo1234"
+            ]
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "required": [
+          "accessToken",
+          "tokenType",
+          "expiresIn",
+          "user"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "JWT (HS256). Send it as \"Authorization: Bearer <token>\"."
+          },
+          "tokenType": {
+            "type": "string",
+            "const": "Bearer"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Seconds until the token expires (JWT_TTL_SECONDS).",
+            "examples": [
+              28800
+            ]
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "CurrentUser": {
+        "type": "object",
+        "required": [
+          "user"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "CreatedBy": {
+        "type": "object",
+        "required": [
+          "id",
+          "fullName"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "User id.",
+            "examples": [
+              42
+            ]
+          },
+          "fullName": {
+            "type": "string",
+            "examples": [
+              "Demo Broker"
+            ]
+          }
+        }
+      },
+      "PortalStatus": {
+        "type": "object",
+        "required": [
+          "portal",
+          "status",
+          "lastError",
+          "publishedAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "portal": {
+            "type": "string",
+            "description": "Portal adapter key.",
+            "examples": [
+              "bazar"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "pending",
+              "published",
+              "error",
+              "removed"
+            ]
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last portal job failed."
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the listing was first published (ISO 8601, UTC)."
+          }
+        },
+        "description": "A property's state on one portal."
+      },
+      "PortalListing": {
+        "type": "object",
+        "required": [
+          "id",
+          "portal",
+          "status",
+          "externalId",
+          "lastError",
+          "publishedAt",
+          "lastSentAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Portal listing id.",
+            "examples": [
+              42
+            ]
+          },
+          "portal": {
+            "type": "string",
+            "description": "Portal adapter key.",
+            "examples": [
+              "bazar"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "pending",
+              "published",
+              "error",
+              "removed"
+            ]
+          },
+          "externalId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The id the portal assigned, if any."
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last portal job failed."
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the listing was first published (ISO 8601, UTC)."
+          },
+          "lastSentAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the listing was last sent to the portal: the finish time of its newest successful publish or update job (ISO 8601, UTC); null if it never was. For a feed portal, when its feed entry was last written; the portal picks it up at its next download."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the listing last changed (ISO 8601, UTC).",
+            "examples": [
+              "2026-11-13T09:30:00.000Z"
+            ]
+          }
+        },
+        "description": "A property's listing on one portal."
+      },
+      "PropertyImage": {
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "sortOrder",
+          "width",
+          "height",
+          "sizeBytes",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Photo id.",
+            "examples": [
+              42
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "Public URL of the stored JPEG.",
+            "examples": [
+              "/uploads/properties/42/0f8fad5b-d9cb-469f-a165-70867728950e.jpg"
+            ]
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Display position, 0 first."
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "examples": [
+              2048
+            ]
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "examples": [
+              1365
+            ]
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "examples": [
+              412345
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the photo was uploaded (ISO 8601, UTC).",
+            "examples": [
+              "2026-11-13T09:30:00.000Z"
+            ]
+          }
+        }
+      },
+      "PropertySummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "refCode",
+          "title",
+          "type",
+          "dealType",
+          "city",
+          "district",
+          "price",
+          "currency",
+          "areaM2",
+          "rooms",
+          "floor",
+          "totalFloors",
+          "status",
+          "coverImageUrl",
+          "imageCount",
+          "portals",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Property id.",
+            "examples": [
+              42
+            ]
+          },
+          "refCode": {
+            "type": "string",
+            "description": "Agency reference. Portals use it to recognise a listing when it is imported again.",
+            "examples": [
+              "IS-00042"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200,
+            "examples": [
+              "Two-bedroom flat near the park"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "apartment",
+              "house",
+              "office",
+              "shop",
+              "land",
+              "garage",
+              "other"
+            ]
+          },
+          "dealType": {
+            "type": "string",
+            "enum": [
+              "sale",
+              "rent"
+            ]
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "examples": [
+              "Sofia"
+            ]
+          },
+          "district": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100,
+            "examples": [
+              "Lozenets"
+            ]
+          },
+          "price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9999999999.99,
+            "description": "At most 2 decimals. For rentals: per month.",
+            "examples": [
+              185000
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code.",
+            "examples": [
+              "EUR"
+            ]
+          },
+          "areaM2": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "maximum": 999999.99,
+            "description": "Area in square metres, at most 2 decimals.",
+            "examples": [
+              92.5
+            ]
+          },
+          "rooms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 255,
+            "examples": [
+              3
+            ]
+          },
+          "floor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -5,
+            "maximum": 200,
+            "description": "0 is the ground floor, negative numbers are basements.",
+            "examples": [
+              4
+            ]
+          },
+          "totalFloors": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 200,
+            "examples": [
+              8
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "archived"
+            ],
+            "description": "The agency's own lifecycle of the property."
+          },
+          "coverImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "URL of the first photo (by sort order), or null without photos.",
+            "examples": [
+              "/uploads/properties/42/0f8fad5b-d9cb-469f-a165-70867728950e.jpg"
+            ]
+          },
+          "imageCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "portals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalStatus"
+            },
+            "description": "Ordered by portal."
+          },
+          "createdBy": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CreatedBy"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who created the property; null if unknown or the account was deleted."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the property was created (ISO 8601, UTC).",
+            "examples": [
+              "2026-11-13T09:30:00.000Z"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the property or its photos last changed (ISO 8601, UTC).",
+            "examples": [
+              "2026-11-13T09:30:00.000Z"
+            ]
+          }
+        }
+      },
+      "PropertyDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "refCode",
+          "title",
+          "type",
+          "dealType",
+          "city",
+          "district",
+          "price",
+          "currency",
+          "areaM2",
+          "rooms",
+          "floor",
+          "totalFloors",
+          "status",
+          "coverImageUrl",
+          "imageCount",
+          "description",
+          "images",
+          "portals",
+          "deletion",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Property id.",
+            "examples": [
+              42
+            ]
+          },
+          "refCode": {
+            "type": "string",
+            "description": "Agency reference. Portals use it to recognise a listing when it is imported again.",
+            "examples": [
+              "IS-00042"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200,
+            "examples": [
+              "Two-bedroom flat near the park"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "apartment",
+              "house",
+              "office",
+              "shop",
+              "land",
+              "garage",
+              "other"
+            ]
+          },
+          "dealType": {
+            "type": "string",
+            "enum": [
+              "sale",
+              "rent"
+            ]
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "examples": [
+              "Sofia"
+            ]
+          },
+          "district": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100,
+            "examples": [
+              "Lozenets"
+            ]
+          },
+          "price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9999999999.99,
+            "description": "At most 2 decimals. For rentals: per month.",
+            "examples": [
+              185000
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code.",
+            "examples": [
+              "EUR"
+            ]
+          },
+          "areaM2": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "maximum": 999999.99,
+            "description": "Area in square metres, at most 2 decimals.",
+            "examples": [
+              92.5
+            ]
+          },
+          "rooms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 255,
+            "examples": [
+              3
+            ]
+          },
+          "floor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -5,
+            "maximum": 200,
+            "description": "0 is the ground floor, negative numbers are basements.",
+            "examples": [
+              4
+            ]
+          },
+          "totalFloors": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 200,
+            "examples": [
+              8
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "archived"
+            ],
+            "description": "The agency's own lifecycle of the property."
+          },
+          "coverImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "URL of the first photo (by sort order), or null without photos.",
+            "examples": [
+              "/uploads/properties/42/0f8fad5b-d9cb-469f-a165-70867728950e.jpg"
+            ]
+          },
+          "imageCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20000,
+            "description": "At most 20000 characters and 65535 bytes in UTF-8."
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PropertyImage"
+            },
+            "description": "In display order."
+          },
+          "portals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalListing"
+            },
+            "description": "Ordered by portal."
+          },
+          "deletion": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ScheduledDeletion"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set while a requested deletion has not happened yet; null otherwise."
+          },
+          "createdBy": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CreatedBy"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who created the property; null if unknown or the account was deleted."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the property was created (ISO 8601, UTC).",
+            "examples": [
+              "2026-11-13T09:30:00.000Z"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the property or its photos last changed (ISO 8601, UTC).",
+            "examples": [
+              "2026-11-13T09:30:00.000Z"
+            ]
+          }
+        }
+      },
+      "ScheduledDeletion": {
+        "type": "object",
+        "required": [
+          "requestedAt",
+          "state",
+          "portals",
+          "deletesAfter"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the deletion was requested (ISO 8601, UTC).",
+            "examples": [
+              "2026-11-13T09:30:00.000Z"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "removing",
+              "feed_retention",
+              "due"
+            ],
+            "description": "removing: a listing is still pending or online (a removal is queued, running, or failed and needs a retry), so no date is known yet. feed_retention: only feeds that still serve its removal (Bazar.bg keeps a removed item as out of stock for BAZAR_REMOVED_RETENTION_DAYS) hold it back, until deletesAfter. due: nothing holds it back; the worker deletes it within a minute."
+          },
+          "portals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keys of the portals it waits for (empty when due).",
+            "examples": [
+              [
+                "bazar"
+              ]
+            ]
+          },
+          "deletesAfter": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "feed_retention: when the last feed stops serving its removal, after which the worker deletes it (ISO 8601, UTC). Otherwise null."
+          }
+        },
+        "description": "An archived property waiting to be deleted. Setting its status to draft or active cancels the deletion."
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "required": [
+          "page",
+          "pageSize",
+          "total",
+          "totalPages"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Matching properties on all pages."
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PropertyList": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PropertySummary"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PropertyCreate": {
+        "type": "object",
+        "required": [
+          "type",
+          "dealType",
+          "city"
+        ],
+        "additionalProperties": false,
+        "description": "Unknown fields are rejected. floor must not exceed totalFloors when both are set.",
+        "properties": {
+          "refCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?:[A-Za-z0-9_-]{3,32})?$",
+            "not": {
+              "type": "string",
+              "pattern": "^[Ii][Ss]-[0-9]+$"
+            },
+            "description": "Optional and unique, 3 to 32 letters, digits, \"-\" or \"_\" (trimmed). Omitted, empty or null: the server assigns \"IS-\" + the id padded to 5 digits. Codes of the form IS-<number>, in any letter case, are reserved for that.",
+            "examples": [
+              "SOF-LOZ-17"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200,
+            "description": "Trimmed; an empty string stores null."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "apartment",
+              "house",
+              "office",
+              "shop",
+              "land",
+              "garage",
+              "other"
+            ]
+          },
+          "dealType": {
+            "type": "string",
+            "enum": [
+              "sale",
+              "rent"
+            ]
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "examples": [
+              "Sofia"
+            ]
+          },
+          "district": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100,
+            "description": "Trimmed; an empty string stores null."
+          },
+          "price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9999999999.99,
+            "description": "At most 2 decimals. For rentals: per month.",
+            "examples": [
+              185000
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code.",
+            "examples": [
+              "EUR"
+            ],
+            "default": "EUR"
+          },
+          "areaM2": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "maximum": 999999.99,
+            "description": "Area in square metres, at most 2 decimals.",
+            "examples": [
+              92.5
+            ]
+          },
+          "rooms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 255,
+            "examples": [
+              3
+            ]
+          },
+          "floor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -5,
+            "maximum": 200,
+            "description": "0 is the ground floor, negative numbers are basements.",
+            "examples": [
+              4
+            ]
+          },
+          "totalFloors": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 200,
+            "examples": [
+              8
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "archived"
+            ],
+            "description": "The agency's own lifecycle of the property.",
+            "default": "draft"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20000,
+            "description": "At most 20000 characters and 65535 bytes in UTF-8."
+          }
+        }
+      },
+      "PropertyUpdate": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": false,
+        "description": "Partial update: only the fields sent change, null clears a nullable field. refCode cannot be changed. Unknown fields are rejected.",
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200,
+            "description": "Trimmed; an empty string stores null."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "apartment",
+              "house",
+              "office",
+              "shop",
+              "land",
+              "garage",
+              "other"
+            ]
+          },
+          "dealType": {
+            "type": "string",
+            "enum": [
+              "sale",
+              "rent"
+            ]
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "examples": [
+              "Sofia"
+            ]
+          },
+          "district": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100,
+            "description": "Trimmed; an empty string stores null."
+          },
+          "price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9999999999.99,
+            "description": "At most 2 decimals. For rentals: per month.",
+            "examples": [
+              185000
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code.",
+            "examples": [
+              "EUR"
+            ]
+          },
+          "areaM2": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "maximum": 999999.99,
+            "description": "Area in square metres, at most 2 decimals.",
+            "examples": [
+              92.5
+            ]
+          },
+          "rooms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 255,
+            "examples": [
+              3
+            ]
+          },
+          "floor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -5,
+            "maximum": 200,
+            "description": "0 is the ground floor, negative numbers are basements.",
+            "examples": [
+              4
+            ]
+          },
+          "totalFloors": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 200,
+            "examples": [
+              8
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "archived"
+            ],
+            "description": "The agency's own lifecycle of the property."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20000,
+            "description": "At most 20000 characters and 65535 bytes in UTF-8."
+          }
+        }
+      },
+      "PropertyImageList": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PropertyImage"
+            }
+          }
+        }
+      },
+      "PropertyImageOrder": {
+        "type": "object",
+        "required": [
+          "imageIds"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "imageIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "uniqueItems": true,
+            "maxItems": 40,
+            "description": "Every photo id of the property exactly once, in the new display order.",
+            "examples": [
+              [
+                12,
+                10,
+                11
+              ]
+            ]
+          }
+        }
+      },
+      "Portal": {
+        "type": "object",
+        "required": [
+          "key",
+          "displayName",
+          "mode",
+          "feedUrl"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Portal adapter key.",
+            "examples": [
+              "demo"
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "examples": [
+              "Demo portal"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "feed",
+              "push"
+            ],
+            "description": "feed: the portal downloads a feed from this server on its own schedule. push: the worker sends each change to the portal."
+          },
+          "feedUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Feed portals: the URL to give the portal (public, protected by the FEED_TOKEN in its path). Push portals: null.",
+            "examples": [
+              "https://imotsync.example/feeds/bazar/0f8fad5bd9cb469fa16570867728950e.xml"
+            ]
+          }
+        },
+        "description": "A portal this server publishes to."
+      },
+      "PortalList": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Portal"
+            }
+          }
+        }
+      },
+      "ValidationIssue": {
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "type": "string",
+            "examples": [
+              "images"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "examples": [
+              "The demo portal needs at least one photo."
+            ]
+          }
+        },
+        "description": "One thing that keeps a property from a portal, by the portal's rules."
+      },
+      "PortalCheck": {
+        "type": "object",
+        "required": [
+          "portal",
+          "displayName",
+          "ready",
+          "issues"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "portal": {
+            "type": "string",
+            "examples": [
+              "demo"
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "examples": [
+              "Demo portal"
+            ]
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "True when there are no issues."
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssue"
+            }
+          }
+        },
+        "description": "The pre-publish check of one property against one portal."
+      },
+      "PortalCheckList": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalCheck"
+            }
+          }
+        }
+      },
+      "PublishRequest": {
+        "type": "object",
+        "required": [
+          "portals"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "portals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true,
+            "description": "Keys of registered portals (GET /portals).",
+            "examples": [
+              [
+                "demo"
+              ]
+            ]
+          }
+        }
+      },
+      "UnpublishRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Unknown fields are rejected. Without portals: every portal of the property.",
+        "properties": {
+          "portals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true,
+            "description": "Keys of registered portals.",
+            "examples": [
+              [
+                "demo"
+              ]
+            ]
+          }
+        }
+      },
+      "JobListing": {
+        "type": "object",
+        "required": [
+          "id",
+          "portal",
+          "status"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Portal listing id.",
+            "examples": [
+              42
+            ]
+          },
+          "portal": {
+            "type": "string",
+            "examples": [
+              "demo"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "pending",
+              "published",
+              "error",
+              "removed"
+            ]
+          }
+        }
+      },
+      "JobProperty": {
+        "type": "object",
+        "required": [
+          "id",
+          "refCode",
+          "title"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Property id.",
+            "examples": [
+              42
+            ]
+          },
+          "refCode": {
+            "type": "string",
+            "examples": [
+              "IS-00042"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Job": {
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "status",
+          "attempts",
+          "maxAttempts",
+          "runAfter",
+          "lockedAt",
+          "lockedBy",
+          "lastError",
+          "result",
+          "finishedAt",
+          "createdAt",
+          "updatedAt",
+          "listing",
+          "property"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Job id.",
+            "examples": [
+              42
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "publish",
+              "update",
+              "remove"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ],
+            "description": "queued (waiting, possibly for a retry at runAfter), running, succeeded or failed (final)."
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Attempts started so far."
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "runAfter": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The job is not started before this time (ISO 8601, UTC).",
+            "examples": [
+              "2026-11-13T09:30:00.000Z"
+            ]
+          },
+          "lockedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Running jobs: when the worker took it (ISO 8601, UTC)."
+          },
+          "lockedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Running jobs: the worker that holds it (host:pid:random)."
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Error of the last failed attempt."
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Outcome of the last attempt: {message, externalId?, details?} on success, {error, retryable, httpStatus?, code?, errorId?, retryInSeconds?} on failure. An unexpected error (code UNEXPECTED) is stored only as a generic message with an errorId; its details are in the worker log under that id."
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the job succeeded or failed for good (ISO 8601, UTC)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the job was queued (ISO 8601, UTC).",
+            "examples": [
+              "2026-11-13T09:30:00.000Z"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the job last changed (ISO 8601, UTC).",
+            "examples": [
+              "2026-11-13T09:30:00.000Z"
+            ]
+          },
+          "listing": {
+            "$ref": "#/components/schemas/JobListing"
+          },
+          "property": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/JobProperty"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "description": "One publish, update or remove operation for one portal listing."
+      },
+      "JobList": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Job"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "JobResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Job"
+          }
+        }
+      },
+      "PublishResult": {
+        "type": "object",
+        "required": [
+          "listings",
+          "jobs"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "listings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalListing"
+            },
+            "description": "The listings involved, after the change, ordered by portal."
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Job"
+            },
+            "description": "The jobs that will carry the request out: new ones, or queued ones the request was merged into."
+          }
+        },
+        "description": "What a publish or unpublish request queued."
+      },
+      "PublishResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PublishResult"
+          }
+        }
+      },
+      "BulkPublishRequest": {
+        "type": "object",
+        "required": [
+          "propertyIds",
+          "portals"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "propertyIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "examples": [
+              [
+                1,
+                2,
+                3
+              ]
+            ]
+          },
+          "portals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true,
+            "examples": [
+              [
+                "demo"
+              ]
+            ]
+          }
+        }
+      },
+      "BulkPublishItem": {
+        "type": "object",
+        "required": [
+          "propertyId",
+          "ok"
+        ],
+        "additionalProperties": false,
+        "description": "ok: jobs were queued. Not ok: error says why (NOT_FOUND, CONFLICT for an archived property, NOT_READY with issues, INTERNAL_ERROR for an unexpected error, which is logged; the other properties go ahead).",
+        "properties": {
+          "propertyId": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Property id.",
+            "examples": [
+              42
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            }
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Job"
+            }
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "NOT_FOUND",
+                  "CONFLICT",
+                  "NOT_READY",
+                  "INTERNAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "BulkPublishResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BulkPublishItem"
+            }
+          }
+        }
+      },
+      "BulkDeleteRequest": {
+        "type": "object",
+        "required": [
+          "propertyIds"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "propertyIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "examples": [
+              [
+                8,
+                9
+              ]
+            ]
+          }
+        }
+      },
+      "BulkDeleteItem": {
+        "type": "object",
+        "required": [
+          "propertyId",
+          "result"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "propertyId": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Property id.",
+            "examples": [
+              42
+            ]
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "deleted",
+              "removal_queued",
+              "deletion_scheduled",
+              "not_found",
+              "error"
+            ],
+            "description": "deleted: gone now (nothing was online). removal_queued: archived, remove jobs queued; the worker deletes it once every portal has removed it. deletion_scheduled: nothing is online, but a feed still serves its removal (a Bazar.bg item kept as out of stock for BAZAR_REMOVED_RETENTION_DAYS): archived; the worker deletes it once that period has passed. not_found: no such property. error: an unexpected error (logged; see error); the other properties go ahead."
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false,
+            "description": "Only with result 'error'.",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "DeletionScheduledResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "result"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string",
+                "enum": [
+                  "deletion_scheduled"
+                ],
+                "description": "The property was archived and is deleted by the worker once its removal has been served for the retention period."
+              }
+            }
+          }
+        }
+      },
+      "BulkDeleteResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BulkDeleteItem"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "PropertyId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Property id.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "JobId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Job id.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "ImageId": {
+        "name": "imageId",
+        "in": "path",
+        "required": true,
+        "description": "Photo id (of this property).",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "headers": {
+      "Location": {
+        "description": "URL of the new property.",
+        "schema": {
+          "type": "string",
+          "examples": [
+            "/api/properties/42"
+          ]
+        }
+      },
+      "WWWAuthenticate": {
+        "description": "Bearer challenge (RFC 6750).",
+        "schema": {
+          "type": "string",
+          "examples": [
+            "Bearer realm=\"imotsync\", error=\"invalid_token\""
+          ]
+        }
+      },
+      "RateLimit": {
+        "description": "Requests left in the current window (IETF RateLimit header, draft 8).",
+        "schema": {
+          "type": "string",
+          "examples": [
+            "\"login\";r=9;t=900"
+          ]
+        }
+      },
+      "RateLimitPolicy": {
+        "description": "The limit and window (IETF RateLimit-Policy header, draft 8).",
+        "schema": {
+          "type": "string",
+          "examples": [
+            "\"login\";q=10;w=900"
+          ]
+        }
+      },
+      "RetryAfter": {
+        "description": "Seconds until another attempt is allowed.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "ETag": {
+        "description": "Strong validator of the document (a hash of its content).",
+        "schema": {
+          "type": "string",
+          "examples": [
+            "\"q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c\""
+          ]
+        }
+      },
+      "LastModified": {
+        "description": "When the document last changed (a job stored a new payload, a listing left the feed).",
+        "schema": {
+          "type": "string",
+          "examples": [
+            "Mon, 16 Nov 2026 08:30:00 GMT"
+          ]
+        }
+      },
+      "CacheControlNoCache": {
+        "description": "no-cache: a copy may be kept, but must be revalidated before use.",
+        "schema": {
+          "type": "string",
+          "const": "no-cache"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "VALIDATION_ERROR: invalid path, query or body; `details` names each field (`path` for a malformed URL, `body` for a malformed body). INVALID_JSON: the body is not valid JSON.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "UNAUTHORIZED: the token is missing, invalid or expired.",
+        "headers": {
+          "WWW-Authenticate": {
+            "$ref": "#/components/headers/WWWAuthenticate"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InvalidCredentials": {
+        "description": "INVALID_CREDENTIALS: unknown email or wrong password (the same answer for both).",
+        "headers": {
+          "WWW-Authenticate": {
+            "$ref": "#/components/headers/WWWAuthenticate"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "FORBIDDEN: the signed-in user lacks the required role.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "NOT_FOUND: no such property, photo or job.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UploadTimedOut": {
+        "description": "REQUEST_TIMEOUT: the upload body did not arrive within 60 seconds; the connection is closed. On a slow connection, send fewer photos per request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "CONFLICT: the request clashes with the current state (duplicate refCode, photo limit, property still on a portal, archived property, a job that cannot be retried).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "PAYLOAD_TOO_LARGE: JSON body over 1 MB, a photo over 15 MB, or an upload body over 301 MB.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "UNSUPPORTED_MEDIA_TYPE: wrong Content-Type, a body encoding (Content-Encoding) or charset the API does not read, or a file that is not an accepted image.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "TOO_MANY_REQUESTS: too many login attempts.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          },
+          "RateLimit": {
+            "$ref": "#/components/headers/RateLimit"
+          },
+          "RateLimit-Policy": {
+            "$ref": "#/components/headers/RateLimitPolicy"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UploadsBusy": {
+        "description": "TOO_MANY_REQUESTS: the server is busy with other photo uploads; try again after Retry-After seconds.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotReady": {
+        "description": "NOT_READY: the property breaks a selected portal's rules; details lists each problem with its portal and field. Nothing was queued.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "INTERNAL_ERROR: unexpected failure (no details in production).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

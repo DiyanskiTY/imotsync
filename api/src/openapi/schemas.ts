@@ -266,6 +266,11 @@ export const schemas: Record<string, JsonSchema> = {
         ...nullable('string', { format: 'date-time' }),
         description: 'When the listing was first published (ISO 8601, UTC).',
       },
+      lastSentAt: {
+        ...nullable('string', { format: 'date-time' }),
+        description:
+          'When the listing was last sent to the portal: the finish time of its newest successful publish or update job (ISO 8601, UTC); null if it never was. For a feed portal, when its feed entry was last written; the portal picks it up at its next download.',
+      },
       updatedAt: dateTime('When the listing last changed'),
     },
     { description: "A property's listing on one portal." },
@@ -296,8 +301,40 @@ export const schemas: Record<string, JsonSchema> = {
     description,
     images: { type: 'array', items: ref('PropertyImage'), description: 'In display order.' },
     portals: { type: 'array', items: ref('PortalListing'), description: 'Ordered by portal.' },
+    deletion: {
+      oneOf: [ref('ScheduledDeletion'), { type: 'null' }],
+      description: 'Set while a requested deletion has not happened yet; null otherwise.',
+    },
     ...audit,
   }),
+
+  ScheduledDeletion: object(
+    {
+      requestedAt: dateTime('When the deletion was requested'),
+      state: {
+        type: 'string',
+        enum: ['removing', 'feed_retention', 'due'],
+        description:
+          'removing: a listing is still pending or online (a removal is queued, running, or failed and needs a retry), so no date is known yet. feed_retention: only feeds that still serve its removal (Bazar.bg keeps a removed item as out of stock for BAZAR_REMOVED_RETENTION_DAYS) hold it back, until deletesAfter. due: nothing holds it back; the worker deletes it within a minute.',
+      },
+      portals: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Keys of the portals it waits for (empty when due).',
+        examples: [['bazar']],
+      },
+      deletesAfter: {
+        type: ['string', 'null'],
+        format: 'date-time',
+        description:
+          'feed_retention: when the last feed stops serving its removal, after which the worker deletes it (ISO 8601, UTC). Otherwise null.',
+      },
+    },
+    {
+      description:
+        'An archived property waiting to be deleted. Setting its status to draft or active cancels the deletion.',
+    },
+  ),
 
   PaginationMeta: object({
     page: { type: 'integer', minimum: 1 },

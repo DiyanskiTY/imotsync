@@ -2,7 +2,11 @@ import type { Knex } from 'knex';
 import type { PortalListingRow } from '../db/types.js';
 import type { Logger } from '../logger.js';
 import { recordFeedChangeForDeletedProperty } from '../portals/feed-items.js';
-import { isRemovalStillServed, removalRetentionCutoff } from '../portals/removal-retention.js';
+import {
+  isRemovalStillServed,
+  removalRetentionCutoff,
+  removalServedUntil,
+} from '../portals/removal-retention.js';
 import { mayBeLive, UNFINISHED_JOB_STATUSES } from './listing-state.js';
 import { createQueueRepository } from './queue.repository.js';
 import { queueTransaction } from './transaction.js';
@@ -70,6 +74,38 @@ export function deletionBlocker(
     isFeedTombstone(listing, rules.removedRetentionDays, now),
   );
   return tombstones.length > 0 ? { kind: 'tombstone', listings: tombstones } : null;
+}
+
+/**
+ * What a property whose deletion was requested is waiting for, for the people watching it:
+ * - 'removing': a listing is pending or still online (a removal is queued, running, or failed
+ *   and needs a retry), so the delete date is not known yet;
+ * - 'feed_retention': only feeds still serving removals hold it back, until `deletesAfter`;
+ * - 'due': nothing holds it back; the worker deletes it at its next check (within a minute).
+ * `portals` are the portals it waits for. Decided by deletionBlocker, the rule the worker
+ * itself follows.
+ */
+export type ScheduledDeletion =
+  | { state: 'removing'; portals: string[]; deletesAfter: null }
+  | { state: 'feed_retention'; portals: string[]; deletesAfter: Date }
+  | { state: 'due'; portals: []; deletesAfter: null };
+
+export function describeScheduledDeletion(
+  listings: readonly PortalListingRow[],
+  rules: DeletionRules,
+): ScheduledDeletion {
+  const blocker = deletionBlocker(listings, rules);
+  if (blocker === null) return { state: 'due', portals: [], deletesAfter: null };
+  const portals = [...new Set(blocker.listings.map((listing) => listing.portal))].sort();
+  if (blocker.kind === 'live') return { state: 'removing', portals, deletesAfter: null };
+  const servedUntil = blocker.listings.map((listing) =>
+    removalServedUntil(
+      // Tombstones always have a payload date (isFeedTombstone checks it).
+      listing.payload_updated_at ?? new Date(0),
+      rules.removedRetentionDays.get(listing.portal) ?? 0,
+    ).getTime(),
+  );
+  return { state: 'feed_retention', portals, deletesAfter: new Date(Math.max(...servedUntil)) };
 }
 
 /**

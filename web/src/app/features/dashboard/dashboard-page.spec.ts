@@ -1,7 +1,10 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MessageService } from 'primeng/api';
+import { of } from 'rxjs';
 
+import { PortalsApi } from '../../core/api/portals-api';
 import { SHOW_DEV_HINTS } from '../../core/dev-hints';
 import { HEALTH_URL, HealthReport } from '../../core/health/health-api';
 import { DashboardPage } from './dashboard-page';
@@ -12,7 +15,13 @@ describe('DashboardPage', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [DashboardPage],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        MessageService,
+        // The portals card has its own spec.
+        { provide: PortalsApi, useValue: { portals$: of([]) } },
+      ],
     });
   });
 

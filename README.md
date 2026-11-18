@@ -57,7 +57,7 @@ More detail: [Publishing](#publishing) below, [docs/architecture.md](docs/archit
 
 ## Current status
 
-**Week 2 is complete: properties are checked against each portal's rules and published in the background to Realistimo, Bazar.bg and a demo portal, with retries and a job log. The admin panel screens come next.**
+**Week 3 is complete: brokers sign in to the admin panel, enter a property with its photos, see what each portal still needs, publish to Realistimo, Bazar.bg and a demo portal (one property or many), follow the status on every portal and retry failed jobs. The Android app comes next.**
 
 In place:
 
@@ -78,12 +78,16 @@ In place:
   - token-protected feed URLs for the portals to download, with `ETag` / `304` support
   - unit tests for every adapter, integration tests for the queue, the worker, the endpoints and the feeds
 - `GET /api/health` with a database check, public `/uploads` for photos
-- Angular admin panel shell with PrimeNG and Tailwind CSS
+- Admin panel (Angular 21, PrimeNG, Tailwind CSS; [details](web/README.md)):
+  - login with a route guard; an expired session sends the user to the login page and back
+  - property list with filters, sorting and paging kept in the URL, the status on every portal, bulk publish and bulk delete
+  - property form with the API's field rules, photo upload with progress, reordering by drag and drop, the pre-publish check per portal, publish and remove
+  - job log with filters, the details of each attempt and Retry; pages refresh while jobs are in flight
+  - request and response types generated from the API's OpenAPI document
 - GitHub Actions workflow: lint, format check, type check, unit and integration tests, builds, a run of the compiled worker
 
 Next:
 
-- Week 3: admin panel screens (property list, form, pre-publish check, job log)
 - Week 4: Android app, deployment with a demo account
 
 The full plan is in the [roadmap](#roadmap).
@@ -102,6 +106,13 @@ The full plan is in the [roadmap](#roadmap).
 | Infrastructure   | Docker Compose, GitHub Actions                                                                                                                        | One-command setup, automated checks on every push  |
 
 **Why Angular 21 and PrimeNG 21.** PrimeNG 22 is no longer published under the MIT license: it uses PrimeTek's own PrimeUI License and ships with a license manager. The admin panel therefore stays on PrimeNG 21, the latest MIT-licensed line, and on Angular 21, which that line supports. Moving to Angular 22 would also need Node.js 24.15 or newer (Angular 22 requires `^24.15.0` on Node 24), so `.nvmrc` would then be pinned to that version.
+
+## Engineering practices
+
+- **Tests written before the code**, about 1,460 automated tests in total: API unit tests, integration tests against a real MariaDB, and admin panel unit tests.
+- **One API contract.** The OpenAPI document is the single description of the API: the API's tests check every route and response against it, and the admin panel generates its TypeScript types from the committed copy ([`api/openapi.json`](api/openapi.json)). CI fails when either side drifts from it.
+- **Strict code reviews and an architecture review**, whose findings were fixed before release.
+- **CI on every push**: lint, formatting, type checks, unit and integration tests, and builds ([details](#continuous-integration)).
 
 ## Repository layout
 
@@ -423,6 +434,7 @@ For example, the properties for sale whose Bazar.bg listing failed, most expensi
 `POST /api/properties/bulk/delete` does that in one step for up to 100 properties. A property without live listings is deleted at once (`deleted`). Otherwise it is archived, marked for deletion (`delete_requested_at`) and gets `remove` jobs (`removal_queued`); the worker deletes the property once nothing of it is online any more. A listing in `error` after a failed update or remove counts as live here, since the earlier version may still be online; while it stays in `error` the property waits, archived, and the job log's retry (or bulk delete again) queues the removal once more.
 
 - **Bazar.bg sees the removal first.** A listing removed from Bazar.bg stays in its feed as out of stock for `BAZAR_REMOVED_RETENTION_DAYS`, so that Bazar.bg, which downloads the feed only every 6 to 24 hours, archives it instead of the item just vanishing (a feed that suddenly shrinks by more than 30% makes Bazar.bg stop the import). That entry lives in the listing row, so the property is kept until the period has passed: bulk delete then answers `deletion_scheduled`, and `DELETE /api/properties/{id}` archives the property and answers `202` with `{"data": {"result": "deletion_scheduled"}}`. The worker deletes it once the period has passed (it checks every minute).
+- **What it is waiting for.** While a deletion is pending, `GET /api/properties/{id}` has a `deletion` object: `state` is `removing` (a removal is queued, running, or failed and needs a retry), `feed_retention` (only a feed still serving the removal holds it back, until `deletesAfter`) or `due` (the worker deletes it within a minute), and `portals` names the portals it waits for. The admin panel shows this as a notice on the property page. It is `null` when no deletion is requested.
 - **Changing your mind.** Setting the status of a property that is waiting to be deleted back to `active` or `draft` (`PATCH /api/properties/{id}`) cancels the deletion for good; publishing it before that is refused with `409`, which says so.
 - **Photo files.** Deleting a photo or a property removes its rows at once, but the files stay while a feed entry may still link to them: the worker's hourly photo sweep deletes the files under `UPLOAD_DIR/properties/` that no photo and no stored feed entry refers to and that are older than an hour. The demo photos under `UPLOAD_DIR/demo/` belong to the seed, which replaces them.
 
@@ -526,25 +538,26 @@ Do not use `true`. It trusts every hop, so the API takes the left-most `X-Forwar
 
 ### API (run in `api/`)
 
-| Script                            | What it does                                                                          |
-| --------------------------------- | ------------------------------------------------------------------------------------- |
-| `npm run dev`                     | Start the API with reload on change (`tsx watch`)                                     |
-| `npm run dev:worker`              | Start the worker with reload on change (`tsx watch`)                                  |
-| `npm run worker:once`             | Process every job that is due, then exit                                              |
-| `npm run build`                   | Compile TypeScript to `dist/`                                                         |
-| `npm start`                       | Run the compiled API (`node dist/server.js`)                                          |
-| `npm run worker`                  | Run the compiled worker (`node dist/worker.js`)                                       |
-| `npm run typecheck`               | Type-check sources and tests                                                          |
-| `npm run lint`                    | ESLint                                                                                |
-| `npm run format` / `format:check` | Format with Prettier / check formatting                                               |
-| `npm test`                        | Unit tests (Vitest); no database needed                                               |
-| `npm run test:integration`        | Integration tests against the Docker MariaDB, in a separate `imotsync_test` database  |
-| `npm run db:migrate`              | Apply pending migrations                                                              |
-| `npm run db:rollback`             | Roll back the last migration batch                                                    |
-| `npm run db:status`               | List applied and pending migrations                                                   |
-| `npm run db:seed`                 | Load the demo data (refused when `NODE_ENV=production` unless `ALLOW_DEMO_SEED=true`) |
-| `npm run db:reset`                | Roll back everything, migrate to latest and seed (deletes local data)                 |
-| `npm run geo:realistimo`          | Download Realistimo's full geo list ([details](docs/portals.md#locations))            |
+| Script                            | What it does                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `npm run dev`                     | Start the API with reload on change (`tsx watch`)                                                |
+| `npm run dev:worker`              | Start the worker with reload on change (`tsx watch`)                                             |
+| `npm run worker:once`             | Process every job that is due, then exit                                                         |
+| `npm run build`                   | Compile TypeScript to `dist/`                                                                    |
+| `npm start`                       | Run the compiled API (`node dist/server.js`)                                                     |
+| `npm run worker`                  | Run the compiled worker (`node dist/worker.js`)                                                  |
+| `npm run typecheck`               | Type-check sources and tests                                                                     |
+| `npm run lint`                    | ESLint                                                                                           |
+| `npm run format` / `format:check` | Format with Prettier / check formatting                                                          |
+| `npm test`                        | Unit tests (Vitest); no database needed                                                          |
+| `npm run test:integration`        | Integration tests against the Docker MariaDB, in a separate `imotsync_test` database             |
+| `npm run db:migrate`              | Apply pending migrations                                                                         |
+| `npm run db:rollback`             | Roll back the last migration batch                                                               |
+| `npm run db:status`               | List applied and pending migrations                                                              |
+| `npm run db:seed`                 | Load the demo data (refused when `NODE_ENV=production` unless `ALLOW_DEMO_SEED=true`)            |
+| `npm run db:reset`                | Roll back everything, migrate to latest and seed (deletes local data)                            |
+| `npm run geo:realistimo`          | Download Realistimo's full geo list ([details](docs/portals.md#locations))                       |
+| `npm run openapi:export`          | Write the OpenAPI document to `api/openapi.json`, from which the admin panel generates its types |
 
 The compiled equivalents used in the containers are `node dist/db/migrate.js latest|rollback|status|reset`, `node dist/db/seed.js` and `node dist/worker.js` (with `--once` for a single pass).
 
@@ -557,13 +570,14 @@ The compiled equivalents used in the containers are `node dist/db/migrate.js lat
 | `npm test`                        | Unit tests (Vitest), single run                                  |
 | `npm run lint`                    | ESLint (angular-eslint)                                          |
 | `npm run format` / `format:check` | Format with Prettier / check formatting                          |
+| `npm run api:types`               | Regenerate the API types from `api/openapi.json`                 |
 
 ### Continuous integration
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request:
 
 - **api**: lint, format check, type check, unit tests, build, a smoke run of the compiled build as Docker Compose runs it (`migrate.js latest` and `status`, `seed.js`, then `server.js` until `/api/health` reports `"status":"ok"`), a single pass of the compiled worker over the seeded jobs (`worker.js --once` with the real adapters and the demo portal's failures turned off, which must exit with code 0 and succeed with every job it claims), integration tests, and a Docker image build. The smoke runs and the integration tests use a MariaDB 11.8 service container.
-- **web**: lint, format check, unit tests, production build.
+- **web**: a check that the generated API types match `api/openapi.json` (`npm run api:types` must leave no change), lint, format check, unit tests, production build.
 - **repo**: Prettier check of the files outside `api/` and `web/` (README, docs, workflow, Compose file) with the root config.
 
 To run the last check locally, from the repository root (use `--write` instead of `--check` to fix the files):
@@ -706,11 +720,11 @@ About four weeks, with something working at the end of each week.
 
 **Week 3: admin panel**
 
-- [ ] Angular project with PrimeNG and Tailwind, login and route guard (the shell with PrimeNG and Tailwind is in place)
-- [ ] Property list: filters, status per portal, bulk delete and bulk publish
-- [ ] Property form with photo upload and reordering
-- [ ] Pre-publish check: which fields are missing for which portal
-- [ ] Job log page with a "Retry" button
+- [x] Angular project with PrimeNG and Tailwind, login and route guard
+- [x] Property list: filters, status per portal, bulk delete and bulk publish
+- [x] Property form with photo upload and reordering
+- [x] Pre-publish check: which fields are missing for which portal
+- [x] Job log page with a "Retry" button
 
 **Week 4: Android and launch**
 

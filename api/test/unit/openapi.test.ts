@@ -75,7 +75,7 @@ describe('OpenAPI document', () => {
 
   it('reports the API version from package.json', () => {
     expect(openApiDocument.info.version).toBe(APP_VERSION);
-    expect(APP_VERSION).toBe('0.3.0');
+    expect(APP_VERSION).toBe('0.4.0');
   });
 
   it('gives every operation a unique operationId', () => {

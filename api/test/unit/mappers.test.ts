@@ -118,9 +118,16 @@ describe('property mappers', () => {
   });
 
   it('maps the detail with photos in the given order and full listings', () => {
-    const detail = toPropertyDetail(property, [image(8, 0), image(3, 1)], [listing]);
+    const detail = toPropertyDetail({
+      row: property,
+      images: [image(8, 0), image(3, 1)],
+      listings: [listing, { ...listing, id: 6, portal: 'demo' }],
+      lastSent: new Map([[5, at('2026-10-03T10:05:00Z')]]),
+      deletion: null,
+    });
 
     expect(detail).toMatchObject({
+      deletion: null,
       description: 'Описание',
       coverImageUrl: '/uploads/properties/12/8.jpg',
       imageCount: 2,
@@ -136,11 +143,51 @@ describe('property mappers', () => {
           externalId: 'BZ-123',
           lastError: null,
           publishedAt: '2026-10-03T10:00:00.000Z',
+          lastSentAt: '2026-10-03T10:05:00.000Z',
           updatedAt: '2026-10-03T10:00:00.000Z',
         },
+        // Never sent successfully.
+        { id: 6, portal: 'demo', lastSentAt: null },
       ],
     });
     expectSchema(detail, 'PropertyDetail');
+  });
+
+  it('describes a scheduled deletion only when one was requested', () => {
+    const archived = {
+      ...property,
+      status: 'archived' as const,
+      delete_requested_at: at('2026-11-17T10:00:00Z'),
+    };
+    const waiting = {
+      state: 'feed_retention' as const,
+      portals: ['bazar'],
+      deletesAfter: at('2026-12-17T10:00:00Z'),
+    };
+
+    const detail = toPropertyDetail({
+      row: archived,
+      images: [],
+      listings: [listing],
+      lastSent: new Map(),
+      deletion: waiting,
+    });
+    expect(detail.deletion).toEqual({
+      requestedAt: '2026-11-17T10:00:00.000Z',
+      state: 'feed_retention',
+      portals: ['bazar'],
+      deletesAfter: '2026-12-17T10:00:00.000Z',
+    });
+    expectSchema(detail, 'PropertyDetail');
+    expect(
+      toPropertyDetail({
+        row: property,
+        images: [],
+        listings: [listing],
+        lastSent: new Map(),
+        deletion: waiting,
+      }).deletion,
+    ).toBeNull();
   });
 
   it('maps input fields to columns and leaves absent fields out', () => {

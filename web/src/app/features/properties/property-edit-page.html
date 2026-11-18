@@ -1,0 +1,332 @@
+<a
+  routerLink="/properties"
+  class="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-color hover:text-color"
+>
+  <i class="pi pi-arrow-left" aria-hidden="true"></i> Properties
+</a>
+
+<div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+  <div class="min-w-0">
+    @if (isNew()) {
+      <h1 class="text-2xl font-semibold tracking-tight text-color">New property</h1>
+      <p class="mt-1 text-muted-color">
+        Enter it once. It starts as a draft; photos and publishing follow once it is saved.
+      </p>
+    } @else if (property(); as current) {
+      <div class="flex flex-wrap items-center gap-3">
+        <h1 class="text-2xl font-semibold tracking-tight text-color">{{ current.refCode }}</h1>
+        <app-status-tag [status]="current.status" />
+      </div>
+      <p class="mt-1 truncate text-muted-color">{{ current.title ?? 'Untitled' }}</p>
+    } @else {
+      <h1 class="text-2xl font-semibold tracking-tight text-color">Property</h1>
+    }
+  </div>
+  @if (property()) {
+    <p-button
+      data-testid="delete-property"
+      label="Delete"
+      icon="pi pi-trash"
+      severity="danger"
+      [outlined]="true"
+      [loading]="deleting()"
+      (onClick)="confirmDelete()"
+    />
+  }
+</div>
+
+@if (!isNew() && !property()) {
+  @if (loaded().error; as error) {
+    <p-message severity="error">
+      <span>{{ error.message }}</span>
+      <a routerLink="/properties" class="ml-2 underline">Back to the list</a>
+    </p-message>
+  } @else {
+    <p-skeleton height="24rem" />
+  }
+} @else {
+  @if (property(); as current) {
+    @if (current.deletion; as deletion) {
+      <app-deletion-notice
+        [deletion]="deletion"
+        [listings]="current.portals"
+        [propertyId]="current.id"
+      />
+    }
+  }
+  <div class="grid gap-6 lg:grid-cols-3">
+    <section
+      aria-labelledby="details-heading"
+      class="rounded-border border border-surface bg-surface-0 p-5 lg:col-span-2"
+    >
+      <h2 id="details-heading" class="mb-4 text-lg font-semibold text-color">Details</h2>
+
+      <form [formGroup]="form" (ngSubmit)="save()" novalidate class="grid gap-4 sm:grid-cols-2">
+        @if (isNew()) {
+          <app-form-field
+            label="Reference code"
+            inputId="field-refCode"
+            [control]="form.controls.refCode"
+            hint="Optional. Left empty, the next IS-number is assigned."
+          >
+            <input pInputText id="field-refCode" formControlName="refCode" autocomplete="off" />
+          </app-form-field>
+        }
+
+        <app-form-field
+          label="Title"
+          inputId="field-title"
+          [control]="form.controls.title"
+          class="sm:col-span-2"
+        >
+          <input pInputText id="field-title" formControlName="title" />
+        </app-form-field>
+
+        <app-form-field
+          label="Type"
+          inputId="field-type"
+          [control]="form.controls.type"
+          [required]="true"
+        >
+          <p-select
+            data-testid="field-type-select"
+            inputId="field-type"
+            formControlName="type"
+            [options]="typeOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Choose a type"
+            styleClass="w-full"
+          />
+        </app-form-field>
+
+        <app-form-field
+          label="Deal"
+          inputId="field-dealType"
+          [control]="form.controls.dealType"
+          [required]="true"
+        >
+          <p-selectbutton
+            formControlName="dealType"
+            [options]="dealOptions"
+            optionLabel="label"
+            optionValue="value"
+            [allowEmpty]="false"
+            ariaLabelledBy="field-dealType"
+          >
+            <ng-template #item let-option>
+              <span [attr.data-testid]="'deal-' + option.value">{{ option.label }}</span>
+            </ng-template>
+          </p-selectbutton>
+        </app-form-field>
+
+        <app-form-field
+          label="City"
+          inputId="field-city"
+          [control]="form.controls.city"
+          [required]="true"
+        >
+          <input pInputText id="field-city" formControlName="city" />
+        </app-form-field>
+
+        <app-form-field
+          label="District"
+          inputId="field-district"
+          [control]="form.controls.district"
+        >
+          <input pInputText id="field-district" formControlName="district" />
+        </app-form-field>
+
+        <app-form-field
+          label="Price"
+          inputId="field-price"
+          [control]="form.controls.price"
+          hint="For rentals: per month."
+        >
+          <p-inputnumber
+            inputId="field-price"
+            formControlName="price"
+            [min]="0"
+            [maxFractionDigits]="2"
+            styleClass="w-full"
+            inputStyleClass="w-full"
+          />
+        </app-form-field>
+
+        <app-form-field
+          label="Currency"
+          inputId="field-currency"
+          [control]="form.controls.currency"
+        >
+          <input
+            pInputText
+            id="field-currency"
+            formControlName="currency"
+            maxlength="3"
+            autocomplete="off"
+            class="uppercase"
+          />
+        </app-form-field>
+
+        <app-form-field label="Area (m²)" inputId="field-areaM2" [control]="form.controls.areaM2">
+          <p-inputnumber
+            inputId="field-areaM2"
+            formControlName="areaM2"
+            [min]="0"
+            [maxFractionDigits]="2"
+            styleClass="w-full"
+            inputStyleClass="w-full"
+          />
+        </app-form-field>
+
+        <app-form-field label="Rooms" inputId="field-rooms" [control]="form.controls.rooms">
+          <p-inputnumber
+            inputId="field-rooms"
+            formControlName="rooms"
+            [min]="0"
+            [useGrouping]="false"
+            styleClass="w-full"
+            inputStyleClass="w-full"
+          />
+        </app-form-field>
+
+        <app-form-field
+          label="Floor"
+          inputId="field-floor"
+          [control]="form.controls.floor"
+          hint="0 is the ground floor."
+        >
+          <p-inputnumber
+            inputId="field-floor"
+            formControlName="floor"
+            [useGrouping]="false"
+            styleClass="w-full"
+            inputStyleClass="w-full"
+          />
+        </app-form-field>
+
+        <app-form-field
+          label="Floors in the building"
+          inputId="field-totalFloors"
+          [control]="form.controls.totalFloors"
+        >
+          <p-inputnumber
+            inputId="field-totalFloors"
+            formControlName="totalFloors"
+            [min]="0"
+            [useGrouping]="false"
+            styleClass="w-full"
+            inputStyleClass="w-full"
+          />
+        </app-form-field>
+
+        <app-form-field
+          label="Description"
+          inputId="field-description"
+          [control]="form.controls.description"
+          [hint]="descriptionLength() + ' / 20,000 characters'"
+          class="sm:col-span-2"
+        >
+          <textarea
+            pTextarea
+            id="field-description"
+            formControlName="description"
+            rows="8"
+            class="w-full"
+          ></textarea>
+        </app-form-field>
+
+        <app-form-field
+          label="Status"
+          inputId="field-status"
+          [control]="form.controls.status"
+          hint="Publishing makes a draft active. Archived properties are not published."
+          class="sm:col-span-2"
+        >
+          <p-selectbutton
+            data-testid="status-select"
+            formControlName="status"
+            [options]="statusOptions"
+            optionLabel="label"
+            optionValue="value"
+            [allowEmpty]="false"
+            ariaLabelledBy="field-status"
+          />
+          @if (statusWarning(); as warning) {
+            <p
+              class="mt-2 flex gap-2 text-sm text-orange-700"
+              role="status"
+              data-testid="status-warning"
+            >
+              <i class="pi pi-exclamation-triangle mt-0.5" aria-hidden="true"></i>
+              <span>{{ warning }}</span>
+            </p>
+          }
+        </app-form-field>
+
+        @if (formErrors().length > 0) {
+          <p-message severity="error" styleClass="sm:col-span-2" role="alert">
+            <ul>
+              @for (message of formErrors(); track $index) {
+                <li>{{ message }}</li>
+              }
+            </ul>
+          </p-message>
+        }
+
+        <div class="flex flex-wrap justify-end gap-2 sm:col-span-2">
+          @if (dirty()) {
+            <p-button
+              label="Discard changes"
+              severity="secondary"
+              [text]="true"
+              (onClick)="discard()"
+            />
+          }
+          <p-button
+            data-testid="save"
+            type="submit"
+            [label]="isNew() ? 'Create property' : 'Save changes'"
+            icon="pi pi-check"
+            [loading]="saving()"
+            [disabled]="saving() || (!isNew() && !dirty())"
+          />
+        </div>
+      </form>
+    </section>
+
+    <section
+      aria-labelledby="publishing-heading"
+      class="rounded-border border border-surface bg-surface-0 p-5"
+    >
+      <h2 id="publishing-heading" class="mb-2 text-lg font-semibold text-color">Portals</h2>
+      @if (property(); as current) {
+        <app-publishing-panel
+          [property]="current"
+          [fixableFields]="fixableFields"
+          (changed)="reload()"
+          (fixField)="focusField($event)"
+        />
+      } @else {
+        <p class="text-sm text-muted-color">
+          Save the property first; then every portal checks it and you can publish it.
+        </p>
+      }
+    </section>
+
+    @if (property(); as current) {
+      <section
+        id="photos"
+        aria-labelledby="photos-heading"
+        class="rounded-border border border-surface bg-surface-0 p-5 lg:col-span-3"
+      >
+        <h2 id="photos-heading" class="mb-2 text-lg font-semibold text-color">Photos</h2>
+        <app-photo-manager
+          [propertyId]="current.id"
+          [images]="current.images"
+          (changed)="reload()"
+        />
+      </section>
+    }
+  </div>
+}

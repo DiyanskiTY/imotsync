@@ -124,11 +124,16 @@ export function createPublishingService(deps: PublishingServiceDeps) {
   }
 
   async function toResult(touched: Touched): Promise<PublishResultDto> {
-    const [listings, jobs] = await Promise.all([
+    const jobRepo = createJobRepository(db);
+    const [listings, jobs, lastSent] = await Promise.all([
       createPublishingRepository(db).listingsByIds(touched.listingIds),
-      createJobRepository(db).findByIds(touched.jobIds),
+      jobRepo.findByIds(touched.jobIds),
+      jobRepo.lastSentFor(touched.listingIds),
     ]);
-    return { listings: listings.map(toPortalListing), jobs: jobs.map(toJobDto) };
+    return {
+      listings: listings.map((listing) => toPortalListing(listing, lastSent)),
+      jobs: jobs.map(toJobDto),
+    };
   }
 
   return {

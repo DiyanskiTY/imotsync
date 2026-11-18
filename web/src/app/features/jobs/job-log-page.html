@@ -1,0 +1,250 @@
+<app-page-header
+  heading="Jobs"
+  description="Every attempt to publish, update or remove a listing, with its outcome."
+>
+  <p-button
+    label="Refresh"
+    icon="pi pi-refresh"
+    severity="secondary"
+    [outlined]="true"
+    [loading]="list.result().loading"
+    (onClick)="list.reload()"
+  />
+</app-page-header>
+
+<form
+  [formGroup]="filters"
+  role="search"
+  aria-label="Filter jobs"
+  class="mb-4 grid gap-3 rounded-border border border-surface bg-surface-0 p-4 sm:grid-cols-2 lg:grid-cols-4"
+  (submit)="$event.preventDefault()"
+>
+  <div class="flex flex-col gap-1">
+    <label for="job-filter-status" class="text-sm font-medium text-color">Status</label>
+    <p-multiselect
+      inputId="job-filter-status"
+      formControlName="status"
+      [options]="statusOptions"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Any status"
+      [showToggleAll]="false"
+      styleClass="w-full"
+    />
+  </div>
+  <div class="flex flex-col gap-1">
+    <label for="job-filter-action" class="text-sm font-medium text-color">Action</label>
+    <p-multiselect
+      inputId="job-filter-action"
+      formControlName="action"
+      [options]="actionOptions"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Any action"
+      [showToggleAll]="false"
+      styleClass="w-full"
+    />
+  </div>
+  <div class="flex flex-col gap-1">
+    <label for="job-filter-portal" class="text-sm font-medium text-color">Portal</label>
+    <p-multiselect
+      inputId="job-filter-portal"
+      formControlName="portal"
+      [options]="portals.options()"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Any portal"
+      [showToggleAll]="false"
+      styleClass="w-full"
+    />
+  </div>
+  <div class="flex items-end">
+    <p-button
+      label="Clear filters"
+      icon="pi pi-filter-slash"
+      severity="secondary"
+      [text]="true"
+      [disabled]="!list.hasFilters()"
+      (onClick)="list.clearFilters()"
+    />
+  </div>
+  @if (propertyId(); as id) {
+    <div class="flex items-center gap-2 text-sm sm:col-span-2 lg:col-span-4">
+      <span class="text-muted-color">Only jobs of</span>
+      <span
+        data-testid="property-filter"
+        class="inline-flex items-center gap-1 rounded-border bg-highlight py-0.5 pr-1 pl-3"
+      >
+        {{ propertyLabel() }}
+        <p-button
+          icon="pi pi-times"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          ariaLabel="Show the jobs of every property"
+          (onClick)="clearPropertyFilter()"
+        />
+      </span>
+    </div>
+  }
+</form>
+
+@if (list.result().error; as error) {
+  <p-message severity="error" styleClass="mb-4">
+    <span>{{ error.message }}</span>
+    <p-button label="Try again" [link]="true" size="small" (onClick)="list.reload()" />
+  </p-message>
+}
+
+<p-table
+  [value]="list.rows()"
+  dataKey="id"
+  [lazy]="true"
+  [lazyLoadOnInit]="false"
+  [loading]="list.result().loading && !list.result().data"
+  [paginator]="true"
+  [rows]="list.pageSize()"
+  [first]="list.first()"
+  [totalRecords]="list.total()"
+  [rowsPerPageOptions]="[10, 20, 50, 100]"
+  [showCurrentPageReport]="true"
+  currentPageReportTemplate="{first}–{last} of {totalRecords}"
+  [sortField]="list.sortField()"
+  [sortOrder]="list.sortOrder()"
+  (onPage)="list.onPage($event)"
+  (onSort)="list.onSort($event)"
+  [rowHover]="true"
+  styleClass="rounded-border border border-surface overflow-hidden"
+  [tableStyle]="{ 'min-width': '60rem' }"
+>
+  <ng-template #header>
+    <tr>
+      <th class="w-12"><span class="sr-only">Details</span></th>
+      <th pSortableColumn="id" class="whitespace-nowrap">Job <p-sortIcon field="id" /></th>
+      <th>Property</th>
+      <th>Portal</th>
+      <th>Action</th>
+      <th>Status</th>
+      <th class="text-right">Attempts</th>
+      <th>Last error</th>
+      <th pSortableColumn="createdAt" class="whitespace-nowrap">
+        Created <p-sortIcon field="createdAt" />
+      </th>
+      <th><span class="sr-only">Actions</span></th>
+    </tr>
+  </ng-template>
+
+  <ng-template #body let-job let-isOpen="expanded" [appRowType]="list.rows()">
+    <tr [attr.data-testid]="'job-row-' + job.id">
+      <td>
+        <p-button
+          type="button"
+          [pRowToggler]="job"
+          [text]="true"
+          [rounded]="true"
+          severity="secondary"
+          size="small"
+          [icon]="isOpen ? 'pi pi-chevron-down' : 'pi pi-chevron-right'"
+          [ariaLabel]="(isOpen ? 'Hide' : 'Show') + ' the details of job ' + job.id"
+        />
+      </td>
+      <td class="whitespace-nowrap text-muted-color">#{{ job.id }}</td>
+      <td>
+        @if (job.property; as property) {
+          <a
+            [routerLink]="['/properties', property.id]"
+            class="font-medium text-primary hover:underline"
+          >
+            {{ property.refCode }}
+          </a>
+          <div class="max-w-48 truncate text-sm text-muted-color">{{ property.title }}</div>
+        } @else {
+          <span class="text-muted-color">Deleted</span>
+        }
+      </td>
+      <td>{{ portals.displayName(job.listing.portal) }}</td>
+      <td>{{ actionLabels[job.action] }}</td>
+      <td><app-status-tag [status]="job.status" /></td>
+      <td class="text-right whitespace-nowrap">{{ job.attempts }}/{{ job.maxAttempts }}</td>
+      <td class="max-w-64">
+        @if (job.lastError) {
+          <span class="line-clamp-2 text-sm text-red-700" [title]="job.lastError">
+            {{ job.lastError }}
+          </span>
+        } @else {
+          <span class="text-muted-color">—</span>
+        }
+      </td>
+      <td class="text-sm whitespace-nowrap text-muted-color">
+        {{ job.createdAt | date: 'd MMM, HH:mm:ss' }}
+      </td>
+      <td class="text-right">
+        @if (canRetry(job)) {
+          <p-button
+            [attr.data-testid]="'retry-' + job.id"
+            label="Retry"
+            icon="pi pi-replay"
+            size="small"
+            [outlined]="true"
+            [loading]="retrying() === job.id"
+            [disabled]="retrying() !== null"
+            (onClick)="retry(job)"
+          />
+        }
+      </td>
+    </tr>
+  </ng-template>
+
+  <ng-template #expandedrow let-job [appRowType]="list.rows()">
+    <tr>
+      <td colspan="10" class="bg-surface-50">
+        <dl class="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          <div>
+            <dt class="text-muted-color">Listing</dt>
+            <dd>#{{ job.listing.id }}, now {{ job.listing.status }}</dd>
+          </div>
+          <div>
+            <dt class="text-muted-color">Next run / finished</dt>
+            <dd>
+              @if (job.finishedAt) {
+                Finished {{ job.finishedAt | date: 'd MMM y, HH:mm:ss' }}
+              } @else {
+                Runs after {{ job.runAfter | date: 'd MMM y, HH:mm:ss' }}
+              }
+            </dd>
+          </div>
+          @if (job.lastError) {
+            <div class="sm:col-span-2">
+              <dt class="text-muted-color">Last error</dt>
+              <dd class="text-red-700">{{ job.lastError }}</dd>
+            </div>
+          }
+          @if (job.result) {
+            <div class="sm:col-span-2">
+              <dt class="text-muted-color">Result</dt>
+              <dd>
+                <pre
+                  class="mt-1 overflow-x-auto rounded-border bg-surface-0 p-3 text-xs"
+                ><code>{{ job.result | json }}</code></pre>
+              </dd>
+            </div>
+          }
+        </dl>
+      </td>
+    </tr>
+  </ng-template>
+
+  <ng-template #emptymessage>
+    <tr>
+      <td colspan="10" class="py-10 text-center text-muted-color">
+        @if (list.result().loading) {
+          Loading jobs…
+        } @else if (list.hasFilters()) {
+          No jobs match these filters.
+        } @else {
+          No jobs yet. Publishing a property creates one job per portal.
+        }
+      </td>
+    </tr>
+  </ng-template>
+</p-table>

@@ -196,6 +196,10 @@ describe('publishing to Realistimo, Bazar.bg and the demo portal', () => {
   it('publishes: the worker runs one job per portal, then both feeds contain the property', async () => {
     const res = await api.post(`/properties/${property.id}/publish`, { portals: PORTALS });
     expect(res.status).toBe(202);
+    // Queued, not sent yet.
+    expect(
+      (res.body as { data: PublishResultDto }).data.listings.map((listing) => listing.lastSentAt),
+    ).toEqual([null, null, null]);
     expect((res.body as { data: PublishResultDto }).data.jobs.map((job) => job.action)).toEqual([
       'publish',
       'publish',
@@ -224,6 +228,11 @@ describe('publishing to Realistimo, Bazar.bg and the demo portal', () => {
         ['demo', 'publish', 'succeeded', 1],
       ]),
     );
+    // Each listing says when it was last sent: when its successful job finished.
+    for (const listing of detail.portals) {
+      const job = jobs.find((j) => j.listing.portal === listing.portal);
+      expect(listing.lastSentAt).toBe(job?.finishedAt);
+    }
     const realistimoJob = jobs.find((job) => job.listing.portal === 'realistimo');
     expect(realistimoJob?.result).toMatchObject({
       message: 'Added to the Realistimo feed (next import picks it up)',

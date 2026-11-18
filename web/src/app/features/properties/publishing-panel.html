@@ -1,0 +1,172 @@
+<div class="mb-3 flex items-center justify-between gap-2">
+  <p class="text-sm text-muted-color">Each portal checks the property against its own rules.</p>
+  <p-button
+    icon="pi pi-refresh"
+    [text]="true"
+    size="small"
+    severity="secondary"
+    ariaLabel="Run the check again"
+    [loading]="checks().loading"
+    (onClick)="recheck()"
+  />
+</div>
+
+@if (portals.error() ?? checks().error; as error) {
+  <p-message severity="error" styleClass="mb-3">{{ error.message }}</p-message>
+}
+
+@if (rows().length > 1) {
+  <div class="mb-3 flex items-center gap-2 px-3">
+    <p-checkbox
+      inputId="publish-all"
+      [binary]="true"
+      [disabled]="!hasReadyPortal() || archived()"
+      [indeterminate]="selection.someChosen()"
+      [ngModel]="selection.allChosen()"
+      (ngModelChange)="selection.setAll($event)"
+    />
+    <label for="publish-all" class="text-sm font-medium text-color">All ready portals</label>
+  </div>
+}
+
+<ul class="flex flex-col gap-3">
+  @for (row of rows(); track row.portal.key) {
+    <li
+      [attr.data-testid]="'portal-' + row.portal.key"
+      class="rounded-border border border-surface p-3"
+    >
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <p-checkbox
+            [inputId]="'publish-' + row.portal.key"
+            [binary]="true"
+            [disabled]="!row.check?.ready || archived()"
+            [ngModel]="selection.isChosen(row.portal.key)"
+            (ngModelChange)="selection.toggle(row.portal.key, $event)"
+          />
+          <label [for]="'publish-' + row.portal.key" class="leading-tight">
+            <span class="block font-medium text-color">{{ row.portal.displayName }}</span>
+            <span class="block text-xs text-muted-color">
+              {{ row.portal.mode === 'feed' ? 'Import feed' : 'Pushed by the worker' }}
+            </span>
+          </label>
+        </div>
+        @if (row.listing; as listing) {
+          <app-status-tag [status]="listing.status" />
+        } @else {
+          <span class="text-sm text-muted-color">Not published</span>
+        }
+      </div>
+
+      @if (row.listing; as listing) {
+        <p class="mt-1 text-xs text-muted-color" [attr.data-testid]="'last-sent-' + row.portal.key">
+          @if (listing.lastSentAt; as sentAt) {
+            Last sent {{ sentAt | date: 'd MMM y, HH:mm' }}
+          } @else {
+            Never sent
+          }
+          @if (listing.status === 'pending') {
+            · sending now
+          }
+        </p>
+      }
+
+      @if (row.listing?.lastError; as lastError) {
+        <p class="mt-2 text-sm text-red-700">{{ lastError }}</p>
+      }
+
+      <div class="mt-2">
+        @if (row.check === null) {
+          <p-skeleton height="1rem" width="60%" />
+        } @else if (row.check.ready) {
+          <p class="flex items-center gap-1.5 text-sm text-green-700">
+            <i class="pi pi-check-circle" aria-hidden="true"></i> Ready
+          </p>
+        } @else {
+          <ul class="flex flex-col gap-1.5" [attr.aria-label]="row.portal.displayName + ' needs'">
+            @for (issue of row.check.issues; track $index) {
+              <li class="flex items-start justify-between gap-2 text-sm">
+                <span class="flex gap-1.5 text-color">
+                  <i class="pi pi-exclamation-circle mt-0.5 text-orange-600" aria-hidden="true"></i>
+                  {{ issue.message }}
+                </span>
+                @if (canFix(issue.field)) {
+                  <p-button
+                    [attr.data-testid]="'fix-' + row.portal.key + '-' + issue.field"
+                    label="Fix"
+                    [link]="true"
+                    size="small"
+                    styleClass="shrink-0 p-0"
+                    [ariaLabel]="'Fix: ' + issue.message"
+                    (onClick)="fixField.emit(issue.field)"
+                  />
+                }
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      @if (isRemovable(row)) {
+        <div class="mt-2 flex justify-end">
+          <p-button
+            [attr.data-testid]="'unpublish-' + row.portal.key"
+            label="Remove from portal"
+            icon="pi pi-eye-slash"
+            size="small"
+            severity="danger"
+            [text]="true"
+            [disabled]="busy()"
+            (onClick)="confirmUnpublish(row)"
+          />
+        </div>
+      }
+    </li>
+  }
+</ul>
+
+@if (publishError(); as error) {
+  <p-message severity="error" styleClass="mt-3" data-testid="publish-error" role="alert">
+    <div>
+      <div>{{ error.message }}</div>
+      @if (error.details.length > 0) {
+        <ul class="mt-1 list-disc pl-5 text-sm">
+          @for (detail of error.details; track $index) {
+            <li>{{ detail.message }}</li>
+          }
+        </ul>
+      }
+    </div>
+  </p-message>
+}
+
+@if (archived()) {
+  <p class="mt-3 text-sm text-muted-color">
+    Archived properties are not published. Set the status to Draft or Active to publish again.
+  </p>
+}
+
+@if (onEveryReadyPortal() && selection.chosen().length === 0 && !archived()) {
+  <p class="mt-3 text-sm text-muted-color" data-testid="publish-hint">
+    Already on every ready portal. Saving changes sends them there by itself; tick a portal to send
+    it again.
+  </p>
+}
+
+<div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+  <a
+    [routerLink]="['/jobs']"
+    [queryParams]="{ propertyId: property().id }"
+    class="text-sm text-primary hover:underline"
+  >
+    View jobs
+  </a>
+  <p-button
+    data-testid="publish"
+    icon="pi pi-send"
+    [label]="publishLabel()"
+    [loading]="busy()"
+    [disabled]="selection.chosen().length === 0 || busy() || archived()"
+    (onClick)="publish()"
+  />
+</div>

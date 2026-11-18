@@ -1,0 +1,83 @@
+<main class="flex min-h-screen items-center justify-center px-4 py-12">
+  <div class="w-full max-w-sm">
+    <div class="mb-8 flex items-center justify-center gap-2.5">
+      <svg class="size-10" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="8" class="fill-primary" />
+        <path
+          d="M8 15.5 16 9l8 6.5V23a1 1 0 0 1-1 1h-4.5v-5h-5v5H9a1 1 0 0 1-1-1z"
+          fill="none"
+          stroke="white"
+          stroke-width="2.25"
+          stroke-linejoin="round"
+        />
+      </svg>
+      <span class="text-2xl font-semibold tracking-tight text-color">
+        Imot<span class="text-primary">Sync</span>
+      </span>
+    </div>
+
+    <section
+      aria-labelledby="login-heading"
+      class="rounded-border border border-surface bg-surface-0 p-6 shadow-sm sm:p-8"
+    >
+      <h1 id="login-heading" class="mb-1 text-xl font-semibold text-color">Sign in</h1>
+      <p class="mb-6 text-sm text-muted-color">Manage your properties and portal listings.</p>
+
+      @if (sessionEnded()) {
+        <p-message severity="info" styleClass="mb-4" data-testid="login-notice">
+          Your session has ended. Sign in again to continue.
+        </p-message>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="login-email" class="text-sm font-medium text-color">Email</label>
+          <input
+            pInputText
+            id="login-email"
+            type="email"
+            formControlName="email"
+            autocomplete="username"
+            data-testid="login-email"
+            [attr.aria-invalid]="showError('email')"
+            [attr.aria-describedby]="showError('email') ? 'login-email-error' : null"
+          />
+          @if (showError('email')) {
+            <small id="login-email-error" class="text-red-700">Enter a valid email address.</small>
+          }
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <label for="login-password" class="text-sm font-medium text-color">Password</label>
+          <p-password
+            inputId="login-password"
+            formControlName="password"
+            autocomplete="current-password"
+            [feedback]="false"
+            [toggleMask]="true"
+            styleClass="w-full"
+            inputStyleClass="w-full"
+          />
+          @if (showError('password')) {
+            <small class="text-red-700">Enter your password.</small>
+          }
+        </div>
+
+        @if (error(); as message) {
+          <p-message severity="error" data-testid="login-error" role="alert">{{
+            message
+          }}</p-message>
+        }
+
+        <p-button
+          type="submit"
+          label="Sign in"
+          icon="pi pi-sign-in"
+          [fluid]="true"
+          [loading]="submitting()"
+          [disabled]="submitting()"
+        />
+      </form>
+    </section>
+  </div>
+</main>

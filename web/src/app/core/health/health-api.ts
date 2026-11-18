@@ -2,14 +2,11 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { catchError, map, Observable, of, throwError, timeout, TimeoutError } from 'rxjs';
 
+import { toApiError } from '../api/api-error';
+import type { Health } from '../api/models';
+
 /** Body of GET /api/health (200 when everything is up, 503 when the database check fails). */
-export interface HealthReport {
-  status: 'ok' | 'degraded';
-  db: 'up' | 'down';
-  /** Version from the API's package.json. */
-  version: string;
-  uptimeSeconds: number;
-}
+export type HealthReport = Health;
 
 /** Why a health check failed, in a form the UI can show. */
 export interface HealthCheckFailure {
@@ -79,13 +76,6 @@ export function isHealthReport(value: unknown): value is HealthReport {
   );
 }
 
-/**
- * Statuses that a proxy in front of the API (the dev-server proxy, or a reverse proxy in
- * production) returns when nothing answers behind it. They count as "unreachable" only when the
- * body is not the API's own error format.
- */
-const PROXY_ERROR_STATUSES: readonly number[] = [500, 502, 503, 504];
-
 /** Explains a failed health check and tells whether the API answered at all. */
 export function describeHealthError(error: unknown): HealthCheckFailure {
   if (error instanceof TimeoutError) {
@@ -98,34 +88,12 @@ export function describeHealthError(error: unknown): HealthCheckFailure {
     return { unreachable: false, message: error.message };
   }
   if (error instanceof HttpErrorResponse) {
-    const apiMessage = readApiErrorMessage(error.error);
-    if (apiMessage) {
-      return { unreachable: false, message: apiMessage };
-    }
-    // Status 0 is a network error (connection refused, CORS, offline).
-    if (error.status === 0 || PROXY_ERROR_STATUSES.includes(error.status)) {
-      return { unreachable: true, message: 'The API could not be reached.' };
-    }
+    const { unreachable, message, code, status } = toApiError(error);
     // A 2xx status here means the body could not be parsed as JSON.
-    if (error.status >= 200 && error.status < 300) {
+    if (code === null && status >= 200 && status < 300) {
       return { unreachable: false, message: new UnexpectedHealthResponseError().message };
     }
-    return { unreachable: false, message: `The API responded with HTTP ${error.status}.` };
+    return { unreachable, message };
   }
   return { unreachable: false, message: 'Unexpected error while checking the API.' };
-}
-
-/** Reads the message from the API's error format: {"error": {"code", "message"}}. */
-function readApiErrorMessage(body: unknown): string | undefined {
-  if (typeof body !== 'object' || body === null) {
-    return undefined;
-  }
-  const error = (body as Record<string, unknown>)['error'];
-  if (typeof error !== 'object' || error === null) {
-    return undefined;
-  }
-  const { code, message } = error as Record<string, unknown>;
-  return typeof code === 'string' && typeof message === 'string' && message.length > 0
-    ? message
-    : undefined;
 }
