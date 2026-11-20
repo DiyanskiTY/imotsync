@@ -13,6 +13,8 @@ export type User = Schemas['User'];
 export type LoginRequest = Schemas['LoginRequest'];
 export type LoginResponse = Schemas['LoginResponse'];
 export type CurrentUser = Schemas['CurrentUser'];
+export type ClientConfig = Schemas['ClientConfig'];
+export type UploadLimits = ClientConfig['uploadLimits'];
 
 export type PropertySummary = Schemas['PropertySummary'];
 export type PropertyDetail = Schemas['PropertyDetail'];

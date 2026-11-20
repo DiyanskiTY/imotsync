@@ -1,12 +1,7 @@
-/**
- * The API's photo limits (README › Photos). The API checks the actual image bytes; these checks
- * only spare the user an upload that is sure to be refused.
- */
-export const PHOTO_LIMITS = {
-  maxFileBytes: 15 * 1024 * 1024,
-  maxFilesPerRequest: 20,
-  maxPerProperty: 40,
-} as const;
+import type { UploadLimits } from '../../core/api/models';
+import { DEFAULT_UPLOAD_LIMITS } from '../../core/client-config/client-config';
+
+const MB = 1024 * 1024;
 
 const ACCEPTED_TYPES: readonly string[] = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 const ACCEPTED_EXTENSIONS = /\.(jpe?g|png|webp|avif)$/i;
@@ -24,13 +19,22 @@ export interface PhotoUploadPlan {
   totalBytes: number;
 }
 
-export function planPhotoUpload(files: readonly File[], existingCount: number): PhotoUploadPlan {
+/**
+ * Checks the chosen files against the API's photo limits (GET /api/client-config) and splits
+ * them into requests. The API checks the actual image bytes; this only spares the user an upload
+ * that is sure to be refused.
+ */
+export function planPhotoUpload(
+  files: readonly File[],
+  existingCount: number,
+  limits: UploadLimits = DEFAULT_UPLOAD_LIMITS,
+): PhotoUploadPlan {
   const accepted: File[] = [];
   const rejected: RejectedPhoto[] = [];
-  let room = PHOTO_LIMITS.maxPerProperty - existingCount;
+  let room = limits.maxPerProperty - existingCount;
 
   for (const file of files) {
-    const reason = rejectionReason(file, room);
+    const reason = rejectionReason(file, room, limits);
     if (reason) {
       rejected.push({ name: file.name, reason });
     } else {
@@ -40,25 +44,30 @@ export function planPhotoUpload(files: readonly File[], existingCount: number): 
   }
 
   const batches: File[][] = [];
-  for (let i = 0; i < accepted.length; i += PHOTO_LIMITS.maxFilesPerRequest) {
-    batches.push(accepted.slice(i, i + PHOTO_LIMITS.maxFilesPerRequest));
+  for (let i = 0; i < accepted.length; i += limits.maxFilesPerRequest) {
+    batches.push(accepted.slice(i, i + limits.maxFilesPerRequest));
   }
   const totalBytes = accepted.reduce((sum, file) => sum + file.size, 0);
   return { batches, rejected, totalBytes };
 }
 
-function rejectionReason(file: File, room: number): string | null {
+/** "15 MB", "5 MB" or "2.5 MB". */
+export function formatMegabytes(bytes: number): string {
+  return `${Number((bytes / MB).toFixed(1))} MB`;
+}
+
+function rejectionReason(file: File, room: number, limits: UploadLimits): string | null {
   const knownType = file.type
     ? ACCEPTED_TYPES.includes(file.type)
     : ACCEPTED_EXTENSIONS.test(file.name);
   if (!knownType) {
     return 'not a JPEG, PNG, WebP or AVIF image';
   }
-  if (file.size > PHOTO_LIMITS.maxFileBytes) {
-    return 'larger than 15 MB';
+  if (file.size > limits.maxFileBytes) {
+    return `larger than ${formatMegabytes(limits.maxFileBytes)}`;
   }
   if (room <= 0) {
-    return `a property has at most ${PHOTO_LIMITS.maxPerProperty} photos`;
+    return `a property has at most ${limits.maxPerProperty} photos`;
   }
   return null;
 }

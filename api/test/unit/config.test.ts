@@ -25,6 +25,7 @@ describe('parseConfig', () => {
       uploadDir: path.resolve(API_ROOT, 'uploads'),
       db: { host: '127.0.0.1', port: 3307, database: 'imotsync', user: 'imotsync', password: 'pw' },
       seed: { demoPassword: 'demo1234', allowInProduction: false },
+      demoMode: false,
       publicBaseUrl: 'http://localhost:3000',
       feeds: { token: 'dev-only-feed-token' },
       worker: {

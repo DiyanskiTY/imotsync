@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import multer from 'multer';
 import { HttpError, validationError } from '../../lib/http-error.js';
-import { PHOTO_LIMITS } from './image-processing.js';
+import { DEFAULT_UPLOAD_LIMITS, type UploadLimits } from './image-processing.js';
 
 /** The multipart field that carries the photos. */
 export const PHOTO_FIELD = 'photos';
@@ -9,11 +9,14 @@ export const PHOTO_FIELD = 'photos';
 const MB = 1024 * 1024;
 
 /**
- * The largest multipart body worth reading: every file at its size limit, plus room for
- * the boundaries and part headers. Anything bigger is refused without being read.
+ * The largest multipart body worth reading under the given limits: every file at its size
+ * limit, plus room for the boundaries and part headers. Anything bigger is refused unread.
  */
-export const MAX_UPLOAD_BODY_BYTES =
-  PHOTO_LIMITS.maxFilesPerRequest * PHOTO_LIMITS.maxFileBytes + MB;
+export const maxUploadBodyBytes = (limits: UploadLimits): number =>
+  limits.maxFilesPerRequest * limits.maxFileBytes + MB;
+
+/** maxUploadBodyBytes with the default limits (301 MB). */
+export const MAX_UPLOAD_BODY_BYTES = maxUploadBodyBytes(DEFAULT_UPLOAD_LIMITS);
 
 /**
  * Time the whole multipart body has to arrive by default: about 5 MB/s for the largest
@@ -50,11 +53,11 @@ function fieldName(name: string | undefined): string {
   return cleaned === '' ? 'body' : cleaned;
 }
 
-function bodyTooLarge(): HttpError {
+function bodyTooLarge(limits: UploadLimits): HttpError {
   return new HttpError(
     413,
     'PAYLOAD_TOO_LARGE',
-    `The upload is larger than ${PHOTO_LIMITS.maxFilesPerRequest} photos of ${PHOTO_LIMITS.maxFileBytes / MB} MB`,
+    `The upload is larger than ${limits.maxFilesPerRequest} photos of ${limits.maxFileBytes / MB} MB`,
   );
 }
 
@@ -96,8 +99,14 @@ type MulterErrorCode =
  * multer's errors (limits, unexpected fields) and busboy's parse errors as API errors.
  * `textField` is the text field the request carried, if any (see createPhotoReceiver):
  * multer reports a second text field without a name, and the first one names the problem.
+ * `limits` are the ones the receiver applied, for the messages.
  */
-export function toUploadError(error: unknown, textField?: string): HttpError {
+export function toUploadError(
+  error: unknown,
+  textField?: string,
+  limits: UploadLimits = DEFAULT_UPLOAD_LIMITS,
+): HttpError {
+  const tooManyFiles = `at most ${limits.maxFilesPerRequest} files per request`;
   if (error instanceof multer.MulterError) {
     const { field } = error;
     // Widened on purpose, so the codes the types miss can be matched.
@@ -108,23 +117,13 @@ export function toUploadError(error: unknown, textField?: string): HttpError {
         return new HttpError(
           413,
           'PAYLOAD_TOO_LARGE',
-          `${typeof fileName === 'string' ? `"${displayName(fileName, 0)}"` : 'A photo'} is larger than ${PHOTO_LIMITS.maxFileBytes / MB} MB`,
+          `${typeof fileName === 'string' ? `"${displayName(fileName, 0)}"` : 'A photo'} is larger than ${limits.maxFileBytes / MB} MB`,
         );
       case 'LIMIT_FILE_COUNT':
-        return validationError([
-          {
-            field: PHOTO_FIELD,
-            message: `at most ${PHOTO_LIMITS.maxFilesPerRequest} files per request`,
-          },
-        ]);
+        return validationError([{ field: PHOTO_FIELD, message: tooManyFiles }]);
       case 'LIMIT_UNEXPECTED_FILE':
         return field === PHOTO_FIELD
-          ? validationError([
-              {
-                field: PHOTO_FIELD,
-                message: `at most ${PHOTO_LIMITS.maxFilesPerRequest} files per request`,
-              },
-            ])
+          ? validationError([{ field: PHOTO_FIELD, message: tooManyFiles }])
           : validationError([
               {
                 field: fieldName(field),
@@ -187,14 +186,16 @@ export interface PhotoReceiverOptions {
    * Later, the upload is answered with 408 and the connection is closed.
    */
   bodyTimeoutMs?: number;
+  /** Size and count limits (default DEFAULT_UPLOAD_LIMITS; lower in the public demo). */
+  limits?: UploadLimits;
 }
 
 /**
- * Receives 1..20 photos from the "photos" field of a multipart/form-data body into memory
- * (15 MB each at most). Text fields are not accepted. What the files contain is decided
+ * Receives photos from the "photos" field of a multipart/form-data body into memory, within
+ * the limits (by default 1..20 photos of 15 MB at most). Text fields are not accepted. What the files contain is decided
  * later by sharp, not by their declared type or extension.
  *
- * A body declared larger than MAX_UPLOAD_BODY_BYTES is refused before it is read, and the
+ * A body declared larger than maxUploadBodyBytes(limits) is refused before it is read, and the
  * connection is closed. One without a declared length is cut off at that size: after a
  * limit error multer reads the rest of the body before it answers, and that must not go on
  * for as long as the client keeps sending.
@@ -207,7 +208,9 @@ export interface PhotoReceiverOptions {
  */
 export function createPhotoReceiver({
   bodyTimeoutMs = DEFAULT_UPLOAD_BODY_TIMEOUT_MS,
+  limits = DEFAULT_UPLOAD_LIMITS,
 }: PhotoReceiverOptions = {}): PhotoReceiver {
+  const maxBodyBytes = maxUploadBodyBytes(limits);
   if (!Number.isInteger(bodyTimeoutMs) || bodyTimeoutMs < 1 || bodyTimeoutMs > MAX_TIMER_MS) {
     throw new RangeError(
       `An upload body timeout must be a whole number of milliseconds from 1 to ${MAX_TIMER_MS}, not ${bodyTimeoutMs}`,
@@ -217,8 +220,8 @@ export function createPhotoReceiver({
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-      fileSize: PHOTO_LIMITS.maxFileBytes,
-      files: PHOTO_LIMITS.maxFilesPerRequest,
+      fileSize: limits.maxFileBytes,
+      files: limits.maxFilesPerRequest,
       // Text fields are refused, by name. busboy stops at the `fields` limit without
       // saying which field went over it, so one field is let through, with no room for a
       // value: multer refuses it by name if it has one (LIMIT_FIELD_VALUE), and leaves an
@@ -231,7 +234,7 @@ export function createPhotoReceiver({
     },
     // Browsers and HTTP clients send UTF-8 file names (Cyrillic, for example).
     defParamCharset: 'utf8',
-  }).array(PHOTO_FIELD, PHOTO_LIMITS.maxFilesPerRequest);
+  }).array(PHOTO_FIELD, limits.maxFilesPerRequest);
 
   return (req, res) =>
     new Promise<UploadedPhoto[]>((resolve, reject) => {
@@ -245,9 +248,9 @@ export function createPhotoReceiver({
         );
         return;
       }
-      if (Number(req.headers['content-length'] ?? 0) > MAX_UPLOAD_BODY_BYTES) {
+      if (Number(req.headers['content-length'] ?? 0) > maxBodyBytes) {
         res.set('Connection', 'close');
-        reject(bodyTooLarge());
+        reject(bodyTooLarge(limits));
         return;
       }
 
@@ -255,7 +258,7 @@ export function createPhotoReceiver({
       let cutOff = false;
       const countBytes = (chunk: Buffer) => {
         received += chunk.length;
-        if (received > MAX_UPLOAD_BODY_BYTES && !cutOff) {
+        if (received > maxBodyBytes && !cutOff) {
           cutOff = true;
           req.destroy();
         }
@@ -275,8 +278,8 @@ export function createPhotoReceiver({
         // Already rejected with 408; multer has only now let go of the body.
         if (timedOut) return;
         const textField = textFieldIn(req);
-        if (cutOff) reject(bodyTooLarge());
-        else if (error !== undefined) reject(toUploadError(error, textField));
+        if (cutOff) reject(bodyTooLarge(limits));
+        else if (error !== undefined) reject(toUploadError(error, textField, limits));
         else if (textField !== undefined) reject(notAPhotoField(textField));
         else resolve(takeFiles(req));
       });

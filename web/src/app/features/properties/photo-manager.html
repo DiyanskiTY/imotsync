@@ -1,8 +1,8 @@
 <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
   <p class="text-sm text-muted-color">
-    {{ photos().length }} of {{ maxPhotos }} photos. The first one is the cover. Drag photos, or use
-    the arrows, to change the order. JPEG, PNG, WebP or AVIF, up to 15 MB each, at least 400 px on
-    the short side.
+    {{ photos().length }} of {{ maxPhotos() }} photos. The first one is the cover. Drag photos, or
+    use the arrows, to change the order. JPEG, PNG, WebP or AVIF, up to {{ maxFileSize() }} each, at
+    least 400 px on the short side.
   </p>
   <input
     #fileInput

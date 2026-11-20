@@ -1,6 +1,6 @@
 import { body } from 'express-validator';
 import { MAX_ID } from '../../lib/validation.js';
-import { PHOTO_LIMITS } from './image-processing.js';
+import { DEFAULT_UPLOAD_LIMITS } from './image-processing.js';
 
 const isId = (value: unknown) =>
   typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_ID;
@@ -14,8 +14,8 @@ export const reorderImagesValidators = [
     .custom((value: unknown) => Array.isArray(value))
     .withMessage('must be an array of photo ids')
     .bail()
-    .custom((ids: unknown[]) => ids.length <= PHOTO_LIMITS.maxPerProperty)
-    .withMessage(`must not list more than ${PHOTO_LIMITS.maxPerProperty} ids`)
+    .custom((ids: unknown[]) => ids.length <= DEFAULT_UPLOAD_LIMITS.maxPerProperty)
+    .withMessage(`must not list more than ${DEFAULT_UPLOAD_LIMITS.maxPerProperty} ids`)
     .bail()
     .custom((ids: unknown[]) => ids.every(isId))
     .withMessage('must contain only positive integer ids')

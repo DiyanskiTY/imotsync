@@ -10,7 +10,7 @@ import { createLogger } from '../../src/logger.js';
 import type { ErrorBody } from '../../src/middleware/error-handler.js';
 import { HTTP_METHODS, type HttpMethod, type Operation } from '../../src/openapi/types.js';
 import { APP_VERSION } from '../../src/version.js';
-import { PHOTO_LIMITS } from '../../src/modules/images/image-processing.js';
+import { DEFAULT_UPLOAD_LIMITS } from '../../src/modules/images/image-processing.js';
 import {
   expectDocumented,
   matchesSchema,
@@ -75,7 +75,7 @@ describe('OpenAPI document', () => {
 
   it('reports the API version from package.json', () => {
     expect(openApiDocument.info.version).toBe(APP_VERSION);
-    expect(APP_VERSION).toBe('0.4.0');
+    expect(APP_VERSION).toBe('0.5.0');
   });
 
   it('gives every operation a unique operationId', () => {
@@ -126,22 +126,27 @@ describe('OpenAPI document', () => {
     const ids = (count: number) => Array.from({ length: count }, (_, index) => index + 1);
 
     expect(
-      matchesSchema({ imageIds: ids(PHOTO_LIMITS.maxPerProperty) }, 'PropertyImageOrder'),
+      matchesSchema({ imageIds: ids(DEFAULT_UPLOAD_LIMITS.maxPerProperty) }, 'PropertyImageOrder'),
     ).toBe(true);
     expect(
-      matchesSchema({ imageIds: ids(PHOTO_LIMITS.maxPerProperty + 1) }, 'PropertyImageOrder'),
+      matchesSchema(
+        { imageIds: ids(DEFAULT_UPLOAD_LIMITS.maxPerProperty + 1) },
+        'PropertyImageOrder',
+      ),
     ).toBe(false);
   });
 
-  it('lists only health, login, the document itself and the feeds as public', () => {
+  it('lists only health, login, the demo sign-in, the client config, the document itself and the feeds as public', () => {
     const publicOperations = operations
       .filter(([, , operation]) => isPublic(operation))
       .map(([method, path]) => `${method.toUpperCase()} ${path}`);
 
     expect(publicOperations.sort()).toEqual([
+      'GET /client-config',
       'GET /feeds/{portal}/{token}.xml',
       'GET /health',
       'GET /openapi.json',
+      'POST /auth/demo',
       'POST /auth/login',
     ]);
   });

@@ -23,6 +23,28 @@
       <h1 id="login-heading" class="mb-1 text-xl font-semibold text-color">Sign in</h1>
       <p class="mb-6 text-sm text-muted-color">Manage your properties and portal listings.</p>
 
+      @if (demoMode()) {
+        <div class="mb-6 flex flex-col gap-2" data-testid="demo-entry">
+          <p-button
+            data-testid="try-demo"
+            label="Try the demo"
+            icon="pi pi-play"
+            [fluid]="true"
+            [loading]="startingDemo()"
+            [disabled]="busy()"
+            (onClick)="tryDemo()"
+          />
+          <p class="text-center text-xs text-muted-color">
+            No account needed: you work as a demo broker on made-up listings.
+          </p>
+        </div>
+        <p class="mb-4 flex items-center gap-3 text-xs text-muted-color">
+          <span class="h-px flex-1 bg-surface-200" aria-hidden="true"></span>
+          or sign in with an account
+          <span class="h-px flex-1 bg-surface-200" aria-hidden="true"></span>
+        </p>
+      }
+
       @if (sessionEnded()) {
         <p-message severity="info" styleClass="mb-4" data-testid="login-notice">
           Your session has ended. Sign in again to continue.
@@ -74,8 +96,9 @@
           label="Sign in"
           icon="pi pi-sign-in"
           [fluid]="true"
+          [outlined]="demoMode()"
           [loading]="submitting()"
-          [disabled]="submitting()"
+          [disabled]="busy()"
         />
       </form>
     </section>

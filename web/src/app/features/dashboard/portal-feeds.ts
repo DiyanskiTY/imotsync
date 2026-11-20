@@ -12,6 +12,7 @@ import { injectPortals } from '../../core/api/portals-api';
  * The portals of this deployment and, for feed portals, the feed URL to register in the
  * portal's import settings. That is the whole "connection": the portal downloads the feed on its
  * own schedule. The token in the URL is what protects the feed, so it stays among signed-in users.
+ * The public demo serves no feeds and shows no URLs (feedUrl is null).
  */
 @Component({
   selector: 'app-portal-feeds',
@@ -55,6 +56,11 @@ import { injectPortals } from '../../core/api/portals-api';
                   (onClick)="copy(url, portal.displayName)"
                 />
               </div>
+            } @else if (portal.mode === 'feed') {
+              <p class="text-sm text-muted-color" [attr.data-testid]="'feed-closed-' + portal.key">
+                The feed is closed on this demo, so its made-up listings never reach
+                {{ portal.displayName }}. Publishing still runs every check and job.
+              </p>
             } @else {
               <p class="text-sm text-muted-color">
                 Pushed by the worker when a job runs; nothing to register.

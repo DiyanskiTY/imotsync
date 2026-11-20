@@ -24,6 +24,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/client-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Client configuration
+         * @description What the admin panel adapts to before anyone signs in: whether this is the public demo, and the photo upload limits.
+         */
+        get: operations["getClientConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/openapi.json": {
         parameters: {
             query?: never;
@@ -55,6 +75,26 @@ export interface paths {
          * @description Exchanges email and password for an access token. Limited to about 10 attempts per 15 minutes per client IP; the RateLimit headers report the state.
          */
         post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/demo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Try the demo
+         * @description Public demo only (GET /client-config says demoMode): signs in the shared demo account without a password. Limited to about 20 sign-ins per 15 minutes per client IP. Answers 404 on any other deployment.
+         */
+        post: operations["demoLogin"];
         delete?: never;
         options?: never;
         head?: never;
@@ -460,6 +500,19 @@ export interface components {
         };
         CurrentUser: {
             user: components["schemas"]["User"];
+        };
+        ClientConfig: {
+            /** @description true on the public demo (DEMO_MODE): made-up data reset every night, POST /auth/demo signs in the shared demo account, and the feeds are closed. */
+            demoMode: boolean;
+            /** @description Photo upload limits of this deployment (lower on the public demo). */
+            uploadLimits: {
+                /** @example 15728640 */
+                maxFileBytes: number;
+                /** @example 20 */
+                maxFilesPerRequest: number;
+                /** @example 40 */
+                maxPerProperty: number;
+            };
         };
         CreatedBy: {
             /**
@@ -1261,6 +1314,27 @@ export interface operations {
             };
         };
     };
+    getClientConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The configuration. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientConfig"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
     getOpenApiDocument: {
         parameters: {
             query?: never;
@@ -1315,6 +1389,37 @@ export interface operations {
             401: components["responses"]["InvalidCredentials"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    demoLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed in as the demo account. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            /** @description NOT_FOUND: this deployment is not the public demo. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

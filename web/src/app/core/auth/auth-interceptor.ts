@@ -3,11 +3,17 @@ import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 
+import { CLIENT_CONFIG_URL } from '../client-config/client-config';
 import { HEALTH_URL } from '../health/health-api';
-import { AuthSession, LOGIN_URL } from './auth-session';
+import { AuthSession, DEMO_LOGIN_URL, LOGIN_URL } from './auth-session';
 
 /** API calls that work without a token (and whose 401 does not mean "session ended"). */
-const PUBLIC_API_URLS: readonly string[] = [LOGIN_URL, HEALTH_URL];
+const PUBLIC_API_URLS: readonly string[] = [
+  LOGIN_URL,
+  DEMO_LOGIN_URL,
+  HEALTH_URL,
+  CLIENT_CONFIG_URL,
+];
 
 function needsToken(url: string): boolean {
   return url.startsWith('/api/') && !PUBLIC_API_URLS.includes(url);

@@ -9,7 +9,7 @@ import { collectUnusedPhotos } from '../../src/jobs/photo-gc.js';
 import { LocalFileStorage } from '../../src/lib/storage.js';
 import { createLogger } from '../../src/logger.js';
 import type { ErrorBody } from '../../src/middleware/error-handler.js';
-import { PHOTO_LIMITS } from '../../src/modules/images/image-processing.js';
+import { DEFAULT_UPLOAD_LIMITS } from '../../src/modules/images/image-processing.js';
 import type { PropertyImageDto } from '../../src/modules/images/images.mappers.js';
 import { createImagesService } from '../../src/modules/images/images.service.js';
 import type { PropertyDetailDto } from '../../src/modules/properties/properties.mappers.js';
@@ -190,10 +190,10 @@ describe('POST /api/properties/:id/images', () => {
     const filesBefore = await readdir(fx.uploadDir, { recursive: true });
     const res = await upload(property.id, [
       { data: await testImage(), name: 'small.jpg' },
-      { data: Buffer.alloc(PHOTO_LIMITS.maxFileBytes + 1, 0xff), name: 'huge.jpg' },
+      { data: Buffer.alloc(DEFAULT_UPLOAD_LIMITS.maxFileBytes + 1, 0xff), name: 'huge.jpg' },
     ]);
 
-    expect(PHOTO_LIMITS.maxFileBytes).toBe(15 * 1024 * 1024);
+    expect(DEFAULT_UPLOAD_LIMITS.maxFileBytes).toBe(15 * 1024 * 1024);
     expect(res.status).toBe(413);
     expect((res.body as ErrorBody).error).toEqual({
       code: 'PAYLOAD_TOO_LARGE',

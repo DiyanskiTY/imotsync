@@ -4,6 +4,14 @@
 
 ImotSync is a portfolio project: an admin panel, a REST API with a background job queue, portal adapters built on the portals' official import feeds, and a small Android companion app for brokers in the field.
 
+**Live demo: <https://imotsync.palovtech.com>**. Click **Try the demo**; no account is needed. Every listing in it is made up, nothing is sent to a real portal, and the data is reset every night ([Public demo](#public-demo)).
+
+## Screenshots
+
+_Screenshots and a 2-minute video of the demo follow here._
+
+<!-- docs/screenshots/: dashboard.png, property-list.png, property-form.png, job-log.png -->
+
 ## The problem
 
 A real estate agency usually advertises the same property on several portals. Each portal has its own form, its own required fields, photo limits and description rules, so a broker types the same listing again and again. When the price changes or the property is sold, every portal has to be updated by hand, and it is easy to miss one.
@@ -57,7 +65,7 @@ More detail: [Publishing](#publishing) below, [docs/architecture.md](docs/archit
 
 ## Current status
 
-**Week 3 is complete: brokers sign in to the admin panel, enter a property with its photos, see what each portal still needs, publish to Realistimo, Bazar.bg and a demo portal (one property or many), follow the status on every portal and retry failed jobs. The Android app comes next.**
+**Week 4's code is complete (the screenshots and the video follow once the demo is online): the admin panel and the API run as a public demo at <https://imotsync.palovtech.com>, deployed with Docker Compose and Caddy on one server. Brokers sign in, enter a property with its photos, see what each portal still needs, publish to Realistimo, Bazar.bg and a demo portal (one property or many), follow the status on every portal and retry failed jobs. The Android app is optional and comes later.**
 
 In place:
 
@@ -84,11 +92,13 @@ In place:
   - property form with the API's field rules, photo upload with progress, reordering by drag and drop, the pre-publish check per portal, publish and remove
   - job log with filters, the details of each attempt and Retry; pages refresh while jobs are in flight
   - request and response types generated from the API's OpenAPI document
-- GitHub Actions workflow: lint, format check, type check, unit and integration tests, builds, a run of the compiled worker
+- GitHub Actions workflow: lint, format check, type check, unit and integration tests, builds, a run of the compiled worker, the production images
+- Public demo mode ([details](#public-demo)): a "Try the demo" button instead of open registration, a banner on every page, a nightly reset to the made-up data, closed feeds, lower upload limits and per-address rate limits, `noindex` everywhere
+- Production deployment ([docs/deploy.md](docs/deploy.md)): Docker Compose with Caddy for automatic HTTPS, MariaDB, the API and the worker on one Hetzner server; nightly database backups
 
 Next:
 
-- Week 4: Android app, deployment with a demo account
+- The Android companion app (optional)
 
 The full plan is in the [roadmap](#roadmap).
 
@@ -109,7 +119,7 @@ The full plan is in the [roadmap](#roadmap).
 
 ## Engineering practices
 
-- **Tests written before the code**, about 1,460 automated tests in total: API unit tests, integration tests against a real MariaDB, and admin panel unit tests.
+- **Tests written before the code**, about 1,500 automated tests in total: API unit tests, integration tests against a real MariaDB, and admin panel unit tests.
 - **One API contract.** The OpenAPI document is the single description of the API: the API's tests check every route and response against it, and the admin panel generates its TypeScript types from the committed copy ([`api/openapi.json`](api/openapi.json)). CI fails when either side drifts from it.
 - **Strict code reviews and an architecture review**, whose findings were fixed before release.
 - **CI on every push**: lint, formatting, type checks, unit and integration tests, and builds ([details](#continuous-integration)).
@@ -123,13 +133,17 @@ imotsync/
 │                         seed; requests.http for trying the API
 ├── web/                  Angular admin panel (PrimeNG, Tailwind CSS)
 ├── android/              Kotlin companion app (placeholder until Week 4)
-├── docs/                 Architecture and portal integration notes
+├── docs/                 Architecture, portal integration notes, deployment guide
+├── deploy/               Production stack: Compose file, Caddyfile, env template, reset and backup
+│                         scripts, cron file (docs/deploy.md)
 ├── .github/workflows/    CI pipeline
-├── docker-compose.yml    MariaDB, plus optional API and worker containers
+├── docker-compose.yml    Development: MariaDB, plus optional API and worker containers
 └── .env.example          Configuration template (copy to .env)
 ```
 
 ## Quick start
+
+This section runs ImotSync on your machine for development. To put it on a server, follow [docs/deploy.md](docs/deploy.md); to run the production stack locally, see [its last section](docs/deploy.md#running-this-stack-on-your-own-computer).
 
 ### Prerequisites
 
@@ -252,7 +266,31 @@ The seed creates two accounts. Their password is `SEED_DEMO_PASSWORD` from `.env
 | `admin@imotsync.local`  | admin  | Demo Admin  |
 | `broker@imotsync.local` | broker | Demo Broker |
 
-Log in with either account through `POST /api/auth/login` ([Try it](#try-it)). Both roles can currently use every endpoint; nothing is admin-only yet. All seeded properties are made up.
+Log in with either account through `POST /api/auth/login` ([Try it](#try-it)); on the [public demo](#public-demo), **Try the demo** signs in the broker without a password. Both roles can currently use every endpoint; nothing is admin-only yet. All seeded properties are made up.
+
+## Public demo
+
+With `DEMO_MODE=true` (the default of the production stack in `deploy/`) the API and the admin panel run as a shared public demo:
+
+- **No open registration.** The login page has a **Try the demo** button, which signs the visitor in as the shared demo broker (`POST /api/auth/demo`, no password). The password login stays for real accounts; on the server, `SEED_DEMO_PASSWORD` is a secret, so only the operator can sign in as the admin.
+- **A banner on every page** says that the data is made up, that nothing reaches a real portal and that the data is reset every night. The admin panel learns that it runs on the demo, and the upload limits, from the public `GET /api/client-config` before it shows the first page.
+- **Nightly reset.** [`deploy/demo-reset.sh`](deploy/demo-reset.sh), run by cron at night, stops the API and the worker, replaces every user, property, photo, listing and job with the made-up seed data, and starts them again ([docs/deploy.md](docs/deploy.md#8-nightly-reset-and-backups)).
+- **Nothing reaches a real portal.** Every `/feeds/...` URL answers `404`, even with the right token, `GET /api/portals` shows no feed URLs, and the configuration refuses to start with a `REALISTIMO_API_KEY` (the one call ImotSync makes to a portal). Publishing to Realistimo and Bazar.bg still runs their checks and jobs, so visitors see the whole flow; the demo portal, which needs no network, shows successes, failures and retries.
+- **Limits per visitor**, so one visitor cannot spoil the demo for the others:
+
+  | What                       | Demo                                                               | Otherwise                       |
+  | -------------------------- | ------------------------------------------------------------------ | ------------------------------- |
+  | Photo size                 | 5 MB                                                               | 15 MB                           |
+  | Photos per upload          | 5                                                                  | 20                              |
+  | Photos per property        | 12                                                                 | 40                              |
+  | Properties in the database | 50, not counting those waiting to be deleted (then `409 CONFLICT`) | no limit                        |
+  | New properties per address | 10 per hour                                                        | no limit                        |
+  | API requests per address   | 900 per 15 minutes, of which 120 writes                            | no limit (login: 10 per 15 min) |
+  | Demo sign-ins per address  | 20 per 15 minutes                                                  | (no demo sign-in: `404`)        |
+
+  Over a request limit the API answers `429 TOO_MANY_REQUESTS` with `Retry-After`. The counters are kept in memory by the API process; behind Caddy, `TRUST_PROXY` makes them count each visitor's own address (over IPv4; the deployment guide explains why the demo has no IPv6 record). Caddy also buffers each photo upload before the API sees it, so a slow upload holds none of the API's upload slots.
+
+- **Not indexed.** Every response of the API and the web server carries `X-Robots-Tag: noindex, nofollow`, and the admin panel's page has the matching `<meta name="robots">` tag.
 
 ## Publishing
 
@@ -336,7 +374,7 @@ Every request works in both editors except the photo upload, which needs VS Code
 2. Every other request sends the token in the header `Authorization: Bearer <accessToken>`. The admin panel and the Android app will use the same header.
 3. A token is a JWT valid for 8 hours by default (`JWT_TTL_SECONDS`). There is no refresh token yet: once the token expires the API answers `401 UNAUTHORIZED` and the client logs in again.
 
-- **Public:** `GET /api/health`, `POST /api/auth/login`, `GET /api/openapi.json`, Swagger UI at `/api/docs`, photo files under `/uploads` (portals download photos by URL), and the portal feeds under `/feeds`, protected by the `FEED_TOKEN` in their URL ([Feeds](#feeds)). Everything else under `/api` needs a valid token.
+- **Public:** `GET /api/health`, `POST /api/auth/login`, `POST /api/auth/demo` (public demo only), `GET /api/client-config`, `GET /api/openapi.json`, Swagger UI at `/api/docs`, photo files under `/uploads` (portals download photos by URL), and the portal feeds under `/feeds`, protected by the `FEED_TOKEN` in their URL ([Feeds](#feeds)). Everything else under `/api` needs a valid token.
 - **Same answer for every failed login:** an unknown email and a wrong password both get `401 INVALID_CREDENTIALS`, and both take about as long, so the API does not reveal which emails have accounts. Emails are matched case-insensitively.
 - **Rate limit:** `POST /api/auth/login` allows 10 attempts per 15 minutes per IP address; further attempts get `429 TOO_MANY_REQUESTS` with the standard `RateLimit` headers. Behind a reverse proxy, set `TRUST_PROXY` to the number of proxies or to their addresses ([Behind a reverse proxy](#behind-a-reverse-proxy)) so the limit applies to the client's address, not the proxy's.
 
@@ -346,6 +384,8 @@ Every request works in both editors except the photo upload, which needs VS Code
 | -------- | --------------------------------------- | ------------ | --------------------------------------------------------------------------------- | ---------------------------------------- |
 | `GET`    | `/api/health`                           | no           | API and database status                                                           | 200 (503 if the DB is down)              |
 | `POST`   | `/api/auth/login`                       | no           | Log in and get a token                                                            | 200                                      |
+| `POST`   | `/api/auth/demo`                        | no           | Public demo only: sign in the shared demo account ([Public demo](#public-demo))   | 200 (404 outside the demo)               |
+| `GET`    | `/api/client-config`                    | no           | Whether this is the public demo, and the photo upload limits                      | 200                                      |
 | `GET`    | `/api/auth/me`                          | yes          | The user the token belongs to: `{"user": {...}}`                                  | 200                                      |
 | `GET`    | `/api/properties`                       | yes          | List properties with search, filters, sorting, pagination                         | 200                                      |
 | `POST`   | `/api/properties`                       | yes          | Create a property                                                                 | 201 with `Location`                      |
@@ -494,6 +534,7 @@ All settings live in one `.env` file at the repository root. The API reads it wh
 | `DB_ROOT_PASSWORD`                  | `root_dev`                        | MariaDB root password; only used to set up the integration-test database                                                                                                                                                         |
 | `SEED_DEMO_PASSWORD`                | `demo1234`                        | Password of the seeded demo accounts                                                                                                                                                                                             |
 | `ALLOW_DEMO_SEED`                   | not set                           | Set to `true` to allow the seed when `NODE_ENV=production` (the Compose demo stack does)                                                                                                                                         |
+| `DEMO_MODE`                         | not set (`false`)                 | `true` runs the [public demo](#public-demo): demo sign-in, banner, lower limits, closed feeds; refuses a `REALISTIMO_API_KEY`                                                                                                    |
 
 Publishing ([Publishing](#publishing)); every one of these is optional:
 
@@ -576,14 +617,15 @@ The compiled equivalents used in the containers are `node dist/db/migrate.js lat
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request:
 
-- **api**: lint, format check, type check, unit tests, build, a smoke run of the compiled build as Docker Compose runs it (`migrate.js latest` and `status`, `seed.js`, then `server.js` until `/api/health` reports `"status":"ok"`), a single pass of the compiled worker over the seeded jobs (`worker.js --once` with the real adapters and the demo portal's failures turned off, which must exit with code 0 and succeed with every job it claims), integration tests, and a Docker image build. The smoke runs and the integration tests use a MariaDB 11.8 service container.
+- **api**: lint, format check, type check, unit tests, build, a smoke run of the compiled build as Docker Compose runs it (`migrate.js latest` and `status`, `seed.js`, then `server.js` until `/api/health` reports `"status":"ok"`), a single pass of the compiled worker over the seeded jobs (`worker.js --once` with the real adapters and the demo portal's failures turned off, which must exit with code 0 and succeed with every job it claims), and integration tests. The smoke runs and the integration tests use a MariaDB 11.8 service container.
 - **web**: a check that the generated API types match `api/openapi.json` (`npm run api:types` must leave no change), lint, format check, unit tests, production build.
-- **repo**: Prettier check of the files outside `api/` and `web/` (README, docs, workflow, Compose file) with the root config.
+- **deploy**: the production stack in `deploy/`: `docker compose config`, a build of the API and web images, `caddy validate` of the Caddyfile and `shellcheck` of the server scripts. Nothing is pushed or deployed.
+- **repo**: Prettier check of the files outside `api/` and `web/` (README, docs, deploy, workflow, Compose file) with the root config.
 
 To run the last check locally, from the repository root (use `--write` instead of `--check` to fix the files):
 
 ```bash
-npx prettier@3.10.1 --check README.md docs .github .vscode docker-compose.yml .prettierrc.json
+npx prettier@3.10.1 --check README.md docs deploy .github .vscode docker-compose.yml .prettierrc.json
 ```
 
 ## Data model
@@ -692,7 +734,7 @@ Six tables: the five above plus `portal_sync_state`, which stands alone. Week 1 
 
 - **Official import methods only.** Adapters use the import feeds and APIs that the portals publish for agencies. No scraping, no automated logins into portal accounts.
 - **Fictional demo data.** Every seeded property, address and account is made up.
-- **Nothing reaches real portals from the demo.** The demo runs on fictional data and is never connected to a real portal account: its feed URLs are not registered with any portal, the Realistimo import sync is off unless an API key is set, and the tests talk to local fake servers only.
+- **Nothing reaches real portals from the demo.** The demo runs on fictional data and is never connected to a real portal account: in demo mode its feeds are closed and the Realistimo import sync cannot be turned on, and the tests talk to local fake servers only.
 - **No invented portal facts.** Every adapter follows the portal's published documentation; whatever the documentation leaves open is listed in [docs/portals.md](docs/portals.md) as a point to confirm with the portal, not guessed.
 - **Photos carry no hidden data.** Every upload is re-encoded without its metadata, so the GPS position a phone records never reaches a portal.
 - Secrets stay out of the repository: configuration comes from `.env`, which is git-ignored.
@@ -726,13 +768,17 @@ About four weeks, with something working at the end of each week.
 - [x] Pre-publish check: which fields are missing for which portal
 - [x] Job log page with a "Retry" button
 
-**Week 4: Android and launch**
+**Week 4: launch**
+
+- [x] Public demo mode: demo button, banner, nightly reset, closed feeds, limits
+- [x] Deployment with Docker Compose and Caddy, nightly backups ([docs/deploy.md](docs/deploy.md))
+- [x] GitHub Actions: build and tests on every push, production images
+- [ ] README screenshots and a 2-minute video
+
+**Later (optional): Android**
 
 - [ ] Kotlin Android app: login, photos from the camera, a short form, sending as a draft
 - [ ] Offline drafts in Room, sent when there is a connection
-- [ ] Deployment with Docker Compose and a demo account
-- [ ] GitHub Actions: build and tests on every push (the workflow file is in place)
-- [ ] README screenshots and a 2-minute video
 
 ## Adding a new portal
 
@@ -787,6 +833,7 @@ The contract's types are described in [docs/architecture.md](docs/architecture.m
 ## More documentation
 
 - [Architecture](docs/architecture.md): components, API conventions, authentication, the photo pipeline, the publishing pipeline, state machines, retry policy, claiming jobs, the worker and the adapter interface
+- [Deployment](docs/deploy.md): the public demo on one server, step by step, from SSH keys to backups
 - [Portals](docs/portals.md): each portal's official import method, what ImotSync sends, validation rules and their reasons, and what to confirm with the portal
 - API reference: Swagger UI at <http://localhost:3000/api/docs> while the API runs, and [`api/requests.http`](api/requests.http) ([Try it](#try-it))
 - [Android app](android/README.md): the planned companion app

@@ -1,0 +1,72 @@
+# ImotSync in production: the admin panel's static files, and the API behind the same origin.
+#   SITE_ADDRESS=imotsync.palovtech.com  Caddy gets and renews a Let's Encrypt certificate itself
+#                                        (the DNS record must point here, "DNS only" in Cloudflare)
+#   SITE_ADDRESS=:80                     plain HTTP on any host name: a local run of this stack
+# See docs/deploy.md.
+{
+	servers {
+		# A client that sends its headers or its body very slowly holds a connection, never more:
+		# the whole request has to arrive in time.
+		timeouts {
+			read_header 10s
+			read_body 2m
+		}
+	}
+}
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		# An admin panel, and the public demo of one: no search engine should index it (the API
+		# sends the same header itself).
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+
+	# The API (with Swagger UI under /api/docs), the photos and the feeds. The API sends its own
+	# security headers. Caddy replaces any X-Forwarded-For a client sends, and the API trusts
+	# only this proxy (TRUST_PROXY), so its rate limits count each visitor's own address.
+	@api path /api /api/* /feeds/* /uploads/*
+	handle @api {
+		# Above the largest photo upload the API accepts: the demo's 5 photos of 5 MB by default
+		# (MAX_REQUEST_BODY_BYTES in deploy/.env, 31457280 = 30 MB; without DEMO_MODE 325058560).
+		# A body that declares more is refused at once, in the API's error format; one that sends
+		# more than it declared, or declares nothing, is cut off at the limit.
+		@tooLarge expression `{http.request.header.Content-Length} != "" && int({http.request.header.Content-Length}) > {$MAX_REQUEST_BODY_BYTES:31457280}`
+		handle @tooLarge {
+			header Content-Type "application/json; charset=utf-8"
+			header Connection "close"
+			respond `{"error":{"code":"PAYLOAD_TOO_LARGE","message":"The request is larger than this server accepts"}}` 413
+		}
+		request_body {
+			max_size {$MAX_REQUEST_BODY_BYTES:31457280}
+		}
+		reverse_proxy api:3000 {
+			# Caddy receives a whole upload before the API sees it, so a visitor who sends one
+			# slowly does not hold one of the API's few upload slots (README, Photos) meanwhile.
+			request_buffers {$MAX_REQUEST_BODY_BYTES:31457280}
+		}
+	}
+
+	# The admin panel: a single-page app, so unknown paths get index.html.
+	handle {
+		root * /srv
+		header {
+			X-Content-Type-Options "nosniff"
+			Referrer-Policy "strict-origin-when-cross-origin"
+			Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		}
+		# Inline styles: PrimeNG sets its theme at run time. No inline scripts at all (the build
+		# does not inline its critical CSS, which would need an onload handler; web/angular.json).
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		# File names with a content hash (main-ABCD1234.js) never change: cache them for good.
+		# Everything else, index.html for every app route above all, is checked on each visit.
+		@hashed path_regexp -[A-Z0-9]{8}\.(js|css)$
+		@unhashed not path_regexp -[A-Z0-9]{8}\.(js|css)$
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		header @unhashed Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

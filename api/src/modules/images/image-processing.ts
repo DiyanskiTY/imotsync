@@ -1,11 +1,7 @@
 import sharp from 'sharp';
 
-/** Limits for property photos; the OpenAPI document and the upload middleware use them too. */
+/** What every stored photo must meet; the OpenAPI document uses these too. */
 export const PHOTO_LIMITS = {
-  /** Largest accepted upload per file. */
-  maxFileBytes: 15 * 1024 * 1024,
-  maxFilesPerRequest: 20,
-  maxPerProperty: 40,
   /** Smallest accepted shorter side; portals reject or bury smaller photos. */
   minShortSide: 400,
   /** Decompression-bomb guard: a small file must not decode into gigabytes of pixels. */
@@ -14,6 +10,23 @@ export const PHOTO_LIMITS = {
   maxStoredSide: 2048,
   jpegQuality: 82,
 } as const;
+
+/**
+ * How much one deployment accepts: DEFAULT_UPLOAD_LIMITS, or the public demo's lower ones
+ * (src/modules/demo/deployment-profile.ts). GET /api/client-config tells the admin panel.
+ */
+export interface UploadLimits {
+  /** Largest accepted upload per file. */
+  maxFileBytes: number;
+  maxFilesPerRequest: number;
+  maxPerProperty: number;
+}
+
+export const DEFAULT_UPLOAD_LIMITS: Readonly<UploadLimits> = Object.freeze({
+  maxFileBytes: 15 * 1024 * 1024,
+  maxFilesPerRequest: 20,
+  maxPerProperty: 40,
+});
 
 export const ACCEPTED_FORMATS = ['jpeg', 'png', 'webp', 'avif'] as const;
 export type AcceptedFormat = (typeof ACCEPTED_FORMATS)[number];

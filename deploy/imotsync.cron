@@ -1,0 +1,11 @@
+# ImotSync's nightly jobs. Install with (docs/deploy.md, step 8):
+#   sudo install -m 644 /opt/imotsync/deploy/imotsync.cron /etc/cron.d/imotsync
+# Times are in the server's time zone, UTC on a new Hetzner server: 00:30 and 01:00 UTC are
+# 02:30 and 03:00 in Bulgaria in winter (03:30 and 04:00 in summer). Output goes to the system
+# journal: journalctl -t imotsync-backup, journalctl -t imotsync-reset
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# m  h  dom mon dow  user    command
+30   0  *   *   *    deploy  bash /opt/imotsync/deploy/backup-db.sh 2>&1 | logger -t imotsync-backup
+0    1  *   *   *    deploy  bash /opt/imotsync/deploy/demo-reset.sh 2>&1 | logger -t imotsync-reset

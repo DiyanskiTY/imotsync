@@ -37,7 +37,11 @@ export function createImagesRouter({
   uploadBodyTimeoutMs = DEFAULT_UPLOAD_BODY_TIMEOUT_MS,
 }: ImagesRouterDeps): Router {
   const router = Router();
-  const receivePhotos = createPhotoReceiver({ bodyTimeoutMs: uploadBodyTimeoutMs });
+  // The same limits the service stores under: one policy, set where the service is built.
+  const receivePhotos = createPhotoReceiver({
+    bodyTimeoutMs: uploadBodyTimeoutMs,
+    limits: images.uploadLimits,
+  });
   const uploadSlots = createConcurrencyLimit(maxConcurrentUploads);
 
   router.post('/properties/:id/images', validateParams(idParam('id')), async (req, res) => {

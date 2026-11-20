@@ -1,3 +1,4 @@
+import type { UserRow } from '../../db/types.js';
 import { HttpError } from '../../lib/http-error.js';
 import { verifyPassword } from '../../lib/password.js';
 import { toUserDto, type LoginResponse } from './auth.mappers.js';
@@ -21,6 +22,12 @@ export interface AuthService {
   login(email: string, password: string): Promise<LoginResponse>;
 }
 
+/** The login response for a user who has proved who they are. */
+export async function issueSession(tokens: TokenService, user: UserRow): Promise<LoginResponse> {
+  const { token, expiresIn } = await tokens.sign({ userId: user.id, role: user.role });
+  return { accessToken: token, tokenType: 'Bearer', expiresIn, user: toUserDto(user) };
+}
+
 export function createAuthService(deps: {
   users: UserRepository;
   tokens: TokenService;
@@ -39,8 +46,7 @@ export function createAuthService(deps: {
         });
       }
 
-      const { token, expiresIn } = await tokens.sign({ userId: user.id, role: user.role });
-      return { accessToken: token, tokenType: 'Bearer', expiresIn, user: toUserDto(user) };
+      return issueSession(tokens, user);
     },
   };
 }

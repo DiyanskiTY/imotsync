@@ -9,7 +9,7 @@ import { createApp, type AppDeps } from '../../src/app.js';
 import { createConcurrencyLimit } from '../../src/lib/concurrency-limit.js';
 import { createLogger } from '../../src/logger.js';
 import { createErrorHandler, type ErrorBody } from '../../src/middleware/error-handler.js';
-import { PHOTO_LIMITS } from '../../src/modules/images/image-processing.js';
+import { DEFAULT_UPLOAD_LIMITS, PHOTO_LIMITS } from '../../src/modules/images/image-processing.js';
 import type { PropertyImageDto } from '../../src/modules/images/images.mappers.js';
 import {
   createImagesRouter,
@@ -31,10 +31,12 @@ const ONLY_PHOTOS = 'Only files in the "photos" field are accepted';
 
 describe('photo limits', () => {
   it('match the documented limits', () => {
-    expect(PHOTO_LIMITS).toMatchObject({
+    expect(DEFAULT_UPLOAD_LIMITS).toEqual({
       maxFileBytes: 15 * MB,
       maxFilesPerRequest: 20,
       maxPerProperty: 40,
+    });
+    expect(PHOTO_LIMITS).toMatchObject({
       minShortSide: 400,
       maxInputPixels: 50_000_000,
       maxStoredSide: 2048,
@@ -339,6 +341,7 @@ describe('the upload deadline and an upload that arrives in time', () => {
   });
 
   const images = {
+    uploadLimits: DEFAULT_UPLOAD_LIMITS,
     assertPropertyExists: () => Promise.resolve(),
     // Takes longer than the deadline: only receiving the body is timed.
     async upload(_propertyId: number, photos: readonly UploadedPhoto[]) {

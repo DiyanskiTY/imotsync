@@ -1,5 +1,5 @@
 import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -7,6 +7,7 @@ import { Observable, of, Subject, throwError } from 'rxjs';
 
 import type { User } from '../../core/api/models';
 import { AuthSession } from '../../core/auth/auth-session';
+import { ClientConfigStore } from '../../core/client-config/client-config';
 import { LoginPage } from './login-page';
 
 @Component({ template: 'target', changeDetection: ChangeDetectionStrategy.OnPush })
@@ -21,9 +22,13 @@ const broker: User = {
 
 describe('LoginPage', () => {
   let login: ReturnType<typeof vi.fn<(email: string, password: string) => Observable<User>>>;
+  let loginToDemo: ReturnType<typeof vi.fn<() => Observable<User>>>;
+  const demoMode = signal(false);
 
   beforeEach(() => {
     login = vi.fn(() => of(broker));
+    loginToDemo = vi.fn(() => of(broker));
+    demoMode.set(false);
     TestBed.configureTestingModule({
       providers: [
         provideRouter([
@@ -31,7 +36,8 @@ describe('LoginPage', () => {
           { path: 'dashboard', component: BlankPage },
           { path: 'properties', component: BlankPage },
         ]),
-        { provide: AuthSession, useValue: { login } },
+        { provide: AuthSession, useValue: { login, loginToDemo } },
+        { provide: ClientConfigStore, useValue: { demoMode } },
       ],
     });
   });
@@ -150,6 +156,56 @@ describe('LoginPage', () => {
     pending.complete();
     await harness.fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/dashboard');
+  });
+
+  describe('on the public demo', () => {
+    const tryDemoButton = (root: HTMLElement) =>
+      root.querySelector<HTMLButtonElement>('[data-testid="try-demo"] button');
+
+    it('has no demo button anywhere else', async () => {
+      const { root } = await open();
+      expect(root.querySelector('[data-testid="demo-entry"]')).toBeNull();
+    });
+
+    it('signs in the demo account with one click and goes where the user wanted', async () => {
+      demoMode.set(true);
+      const { harness, root } = await open('/login?returnUrl=%2Fproperties');
+      tryDemoButton(root)?.click();
+      await harness.fixture.whenStable();
+
+      expect(loginToDemo).toHaveBeenCalledOnce();
+      expect(login).not.toHaveBeenCalled();
+      expect(TestBed.inject(Router).url).toBe('/properties');
+    });
+
+    it('shows why the demo sign-in failed', async () => {
+      demoMode.set(true);
+      loginToDemo.mockReturnValue(
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 429,
+              headers: new HttpHeaders({ 'Retry-After': '60' }),
+              error: { error: { code: 'TOO_MANY_REQUESTS', message: 'Too many demo sign-ins.' } },
+            }),
+        ),
+      );
+      const { harness, root } = await open();
+      tryDemoButton(root)?.click();
+      await harness.fixture.whenStable();
+
+      expect(errorText(root)).toBe('Too many demo sign-ins. Try again in 1 minute.');
+      expect(TestBed.inject(Router).url).toBe('/login');
+    });
+
+    it('keeps the password form for real accounts', async () => {
+      demoMode.set(true);
+      const { harness, root } = await open();
+      fill(root, 'broker@example.test', 'secret');
+      await submit(harness, root);
+
+      expect(login).toHaveBeenCalledWith('broker@example.test', 'secret');
+    });
   });
 
   it('explains why a user was sent back to the login page', async () => {

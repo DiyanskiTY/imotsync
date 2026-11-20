@@ -24,6 +24,7 @@ import {
   type PortalCheckDto,
   type PortalDto,
   type PublishResultDto,
+  type FeedLocation,
 } from './publishing.mappers.js';
 import { createPublishingRepository } from './publishing.repository.js';
 
@@ -31,7 +32,10 @@ export interface PublishingServiceDeps {
   db: Knex;
   registry: PortalRegistry;
   logger: Logger;
-  config: { publicBaseUrl: string; feeds: { token: string } };
+  /** PUBLIC_BASE_URL: the photo URLs adapters build start with it. */
+  publicBaseUrl: string;
+  /** Where the feeds are served, for GET /portals; null where they are closed (the demo). */
+  feeds: FeedLocation | null;
 }
 
 /** What one publish or unpublish touched, by id (read back after the commit). */
@@ -62,8 +66,8 @@ export function notReady(refCode: string, issues: FieldIssue[], displayNames: st
 const INTERNAL_ERROR = { code: 'INTERNAL_ERROR', message: 'Internal server error' } as const;
 
 export function createPublishingService(deps: PublishingServiceDeps) {
-  const { db, registry, logger, config } = deps;
-  const loadOptions = { publicBaseUrl: config.publicBaseUrl };
+  const { db, registry, logger, feeds } = deps;
+  const loadOptions = { publicBaseUrl: deps.publicBaseUrl };
 
   const adapterFor = (key: string): PortalAdapter => {
     const adapter = registry.get(key);
@@ -138,7 +142,6 @@ export function createPublishingService(deps: PublishingServiceDeps) {
 
   return {
     listPortals(): PortalDto[] {
-      const feeds = { publicBaseUrl: config.publicBaseUrl, token: config.feeds.token };
       return [...registry.adapters.values()].map((adapter) => toPortalDto(adapter, feeds));
     },
 

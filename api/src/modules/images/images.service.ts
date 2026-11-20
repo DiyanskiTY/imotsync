@@ -16,11 +16,12 @@ import { createPropertyRepository } from '../properties/properties.repository.js
 import {
   ACCEPTED_FORMATS_TEXT,
   inspectImage,
-  PHOTO_LIMITS,
+  DEFAULT_UPLOAD_LIMITS,
   processImage,
   RejectedImageError,
   UnsupportedImageError,
   type ProcessedImage,
+  type UploadLimits,
 } from './image-processing.js';
 import { toImageDto, type PropertyImageDto } from './images.mappers.js';
 import { createImageRepository } from './images.repository.js';
@@ -44,10 +45,10 @@ const toIssue = ({ name, field, reason }: FileProblem): FieldIssue => ({
 
 const quote = (names: string[]) => names.map((name) => `"${name}"`).join(', ');
 
-function tooManyPhotos(existing: number, adding: number): HttpError {
-  const room = Math.max(0, PHOTO_LIMITS.maxPerProperty - existing);
+function tooManyPhotos(maxPerProperty: number, existing: number, adding: number): HttpError {
+  const room = Math.max(0, maxPerProperty - existing);
   return conflict(
-    `A property can have at most ${PHOTO_LIMITS.maxPerProperty} photos. It has ${existing}, ` +
+    `A property can have at most ${maxPerProperty} photos. It has ${existing}, ` +
       `so ${room === 0 ? 'no more can be added' : `at most ${room} more can be added`} (this request has ${adding}).`,
   );
 }
@@ -63,8 +64,16 @@ function unsupportedMedia(problems: FileProblem[]): HttpError {
   });
 }
 
-export function createImagesService(deps: { db: Knex; storage: FileStorage; logger: Logger }) {
+export function createImagesService(deps: {
+  db: Knex;
+  storage: FileStorage;
+  logger: Logger;
+  /** This deployment's upload limits (default DEFAULT_UPLOAD_LIMITS; lower on the demo). */
+  uploadLimits?: UploadLimits;
+}) {
   const { db, storage, logger } = deps;
+  const uploadLimits = deps.uploadLimits ?? DEFAULT_UPLOAD_LIMITS;
+  const { maxPerProperty } = uploadLimits;
 
   /** Checks every file before any work is done, so all problems are reported at once. */
   async function checkFiles(files: readonly UploadedPhoto[]): Promise<void> {
@@ -119,6 +128,9 @@ export function createImagesService(deps: { db: Knex; storage: FileStorage; logg
   }
 
   return {
+    /** The limits uploads are received and stored under (the router's receiver uses them). */
+    uploadLimits,
+
     /** 404 NOT_FOUND unless the property exists (checked before a large upload is read). */
     async assertPropertyExists(propertyId: number): Promise<void> {
       if (!(await createPropertyRepository(db).findById(propertyId))) {
@@ -139,8 +151,8 @@ export function createImagesService(deps: { db: Knex; storage: FileStorage; logg
         throw validationError([{ field: PHOTO_FIELD, message: 'must contain at least one photo' }]);
       }
       const existing = await createImageRepository(db).countForProperty(propertyId);
-      if (existing + files.length > PHOTO_LIMITS.maxPerProperty) {
-        throw tooManyPhotos(existing, files.length);
+      if (existing + files.length > maxPerProperty) {
+        throw tooManyPhotos(maxPerProperty, existing, files.length);
       }
 
       await checkFiles(files);
@@ -167,8 +179,8 @@ export function createImagesService(deps: { db: Knex; storage: FileStorage; logg
             throw notFound(`Property ${propertyId} does not exist`);
           }
           const count = await images.countForProperty(propertyId);
-          if (count + rows.length > PHOTO_LIMITS.maxPerProperty) {
-            throw tooManyPhotos(count, rows.length);
+          if (count + rows.length > maxPerProperty) {
+            throw tooManyPhotos(maxPerProperty, count, rows.length);
           }
           let sortOrder = ((await images.maxSortOrder(propertyId)) ?? -1) + 1;
           const ids: number[] = [];

@@ -15,7 +15,15 @@ import {
 } from '../modules/jobs/jobs.validators.js';
 import { FEEDS_PATH } from '../modules/feeds/feeds.router.js';
 import { BULK_MAX_PROPERTIES } from '../modules/publishing/publishing.validators.js';
-import { ACCEPTED_FORMATS_TEXT, PHOTO_LIMITS } from '../modules/images/image-processing.js';
+import {
+  ACCEPTED_FORMATS_TEXT,
+  DEFAULT_UPLOAD_LIMITS,
+  PHOTO_LIMITS,
+} from '../modules/images/image-processing.js';
+import {
+  DEMO_MAX_PROPERTIES,
+  DEMO_RATE_LIMIT_DEFAULTS,
+} from '../modules/demo/deployment-profile.js';
 import {
   DEFAULT_UPLOAD_BODY_TIMEOUT_MS,
   MAX_UPLOAD_BODY_BYTES,
@@ -228,13 +236,13 @@ const photos: Record<string, Operation> = {
     operationId: 'uploadPropertyImages',
     summary: 'Upload photos',
     description: [
-      `Send 1 to ${PHOTO_LIMITS.maxFilesPerRequest} files in the multipart field "${PHOTO_FIELD}", each at most ${PHOTO_LIMITS.maxFileBytes / MB} MB;`,
+      `Send 1 to ${DEFAULT_UPLOAD_LIMITS.maxFilesPerRequest} files in the multipart field "${PHOTO_FIELD}", each at most ${DEFAULT_UPLOAD_LIMITS.maxFileBytes / MB} MB;`,
       `any other field, text fields included, gets 400 naming it.`,
       `The content decides, not the file name or declared type: ${ACCEPTED_FORMATS_TEXT} images are accepted (415 otherwise),`,
       `with at least ${PHOTO_LIMITS.minShortSide} px on the shorter side and at most ${PHOTO_LIMITS.maxInputPixels / 1_000_000} megapixels (400 otherwise).`,
       `Every photo is turned upright, stripped of all metadata (including GPS), fitted inside ${PHOTO_LIMITS.maxStoredSide}x${PHOTO_LIMITS.maxStoredSide} px and stored as JPEG;`,
       `the stored photo keeps at least ${PHOTO_LIMITS.minShortSide} px on its shorter side too, so very long, narrow images are refused (400).`,
-      `New photos go after the existing ones. A property has at most ${PHOTO_LIMITS.maxPerProperty} photos (409 otherwise).`,
+      `New photos go after the existing ones. A property has at most ${DEFAULT_UPLOAD_LIMITS.maxPerProperty} photos (409 otherwise).`,
       `The server handles a few uploads at a time; when all are busy it answers 429 with Retry-After.`,
       `The whole body has to arrive within ${DEFAULT_UPLOAD_BODY_TIMEOUT_MS / 1000} seconds (408 otherwise, and the connection is closed); on a slow connection, send fewer photos per request.`,
     ].join(' '),
@@ -252,7 +260,7 @@ const photos: Record<string, Operation> = {
               [PHOTO_FIELD]: {
                 type: 'array',
                 minItems: 1,
-                maxItems: PHOTO_LIMITS.maxFilesPerRequest,
+                maxItems: DEFAULT_UPLOAD_LIMITS.maxFilesPerRequest,
                 // contentMediaType is the OpenAPI 3.1 way to describe a file. Swagger UI
                 // (5.35) shows a file picker for array items only with format: binary,
                 // and looking that format up logs a harmless "Could not find component:
@@ -612,11 +620,13 @@ export function buildOpenApiDocument(): OpenApiDocument {
       description: [
         'Prepare a property once and publish it to several real estate portals through their official import feeds.',
         '',
-        '**Authentication.** `POST /auth/login` returns a JWT. Send it as `Authorization: Bearer <token>` (in this page: **Authorize**). Every operation needs it except the health check, login, this document and the feeds (`/feeds/{portal}/{token}.xml`, outside `/api`, protected by the token in the path).',
+        '**Authentication.** `POST /auth/login` returns a JWT. Send it as `Authorization: Bearer <token>` (in this page: **Authorize**). Every operation needs it except the health check, login, the demo sign-in, the client configuration, this document and the feeds (`/feeds/{portal}/{token}.xml`, outside `/api`, protected by the token in the path).',
         '',
         '**Errors** always look like `{"error":{"code","message","details"?}}`; `details` lists per-field problems for `VALIDATION_ERROR`.',
         '',
         '**Conventions.** JSON fields are camelCase, times are ISO 8601 in UTC, prices and areas are numbers.',
+        '',
+        `**Public demo.** When \`GET /client-config\` reports \`demoMode\`, the data is made up and reset every night, the feeds are closed, photo uploads have lower limits (\`uploadLimits\`), at most ${DEMO_MAX_PROPERTIES} properties can exist (${DEMO_RATE_LIMIT_DEFAULTS.createsPerHour} new ones per hour per address), and every operation may answer \`429 TOO_MANY_REQUESTS\` when one address sends too many requests.`,
       ].join('\n'),
     },
     servers: [{ url: '/api', description: 'This server' }],
@@ -652,6 +662,20 @@ export function buildOpenApiDocument(): OpenApiDocument {
               description: 'The database is down or too slow.',
               content: json(ref('Health')),
             },
+            '500': response('InternalError'),
+          },
+        },
+      },
+      '/client-config': {
+        get: {
+          operationId: 'getClientConfig',
+          summary: 'Client configuration',
+          description:
+            'What the admin panel adapts to before anyone signs in: whether this is the public demo, and the photo upload limits.',
+          tags: ['System'],
+          security: [],
+          responses: {
+            '200': { description: 'The configuration.', content: json(ref('ClientConfig')) },
             '500': response('InternalError'),
           },
         },
@@ -701,6 +725,24 @@ export function buildOpenApiDocument(): OpenApiDocument {
             '401': response('InvalidCredentials'),
             '413': response('PayloadTooLarge'),
             '415': response('UnsupportedMediaType'),
+            '429': response('TooManyRequests'),
+            '500': response('InternalError'),
+          },
+        },
+      },
+      '/auth/demo': {
+        post: {
+          operationId: 'demoLogin',
+          summary: 'Try the demo',
+          description: `Public demo only (GET /client-config says demoMode): signs in the shared demo account without a password. Limited to about ${DEMO_RATE_LIMIT_DEFAULTS.logins} sign-ins per ${DEMO_RATE_LIMIT_DEFAULTS.windowMs / 60_000} minutes per client IP. Answers 404 on any other deployment.`,
+          tags: ['Auth'],
+          security: [],
+          responses: {
+            '200': {
+              description: 'Signed in as the demo account.',
+              content: json(ref('LoginResponse')),
+            },
+            '404': errorResponse('NOT_FOUND: this deployment is not the public demo.'),
             '429': response('TooManyRequests'),
             '500': response('InternalError'),
           },
@@ -829,7 +871,7 @@ export function buildOpenApiDocument(): OpenApiDocument {
           'CONFLICT: the request clashes with the current state (duplicate refCode, photo limit, property still on a portal, archived property, a job that cannot be retried).',
         ),
         PayloadTooLarge: errorResponse(
-          `PAYLOAD_TOO_LARGE: JSON body over 1 MB, a photo over ${PHOTO_LIMITS.maxFileBytes / MB} MB, or an upload body over ${Math.floor(MAX_UPLOAD_BODY_BYTES / MB)} MB.`,
+          `PAYLOAD_TOO_LARGE: JSON body over 1 MB, a photo over ${DEFAULT_UPLOAD_LIMITS.maxFileBytes / MB} MB, or an upload body over ${Math.floor(MAX_UPLOAD_BODY_BYTES / MB)} MB.`,
         ),
         UnsupportedMediaType: errorResponse(
           'UNSUPPORTED_MEDIA_TYPE: wrong Content-Type, a body encoding (Content-Encoding) or charset the API does not read, or a file that is not an accepted image.',

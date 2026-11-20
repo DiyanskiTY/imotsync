@@ -80,9 +80,12 @@ export interface DemoProperty {
   listings: DemoListing[];
 }
 
+/** The account the public demo's "Try the demo" button signs in (POST /api/auth/demo). */
+export const DEMO_ACCOUNT_EMAIL = 'broker@imotsync.local';
+
 export const DEMO_USERS: readonly DemoUser[] = [
   { id: 1, email: 'admin@imotsync.local', fullName: 'Demo Admin', role: 'admin' },
-  { id: 2, email: 'broker@imotsync.local', fullName: 'Demo Broker', role: 'broker' },
+  { id: 2, email: DEMO_ACCOUNT_EMAIL, fullName: 'Demo Broker', role: 'broker' },
 ];
 
 const ADMIN = 1;

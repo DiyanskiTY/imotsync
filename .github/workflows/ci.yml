@@ -148,9 +148,6 @@ jobs:
       - name: Integration tests (MariaDB service)
         run: npm run test:integration
 
-      - name: Build Docker image
-        run: docker build --tag imotsync-api:ci .
-
   web:
     name: Web
     runs-on: ubuntu-latest
@@ -195,6 +192,44 @@ jobs:
       - name: Build
         run: npm run build
 
+  # The production stack in deploy/ (docs/deploy.md): its Compose file, both images, the Caddyfile
+  # and the server scripts. Nothing is pushed or deployed.
+  deploy:
+    name: Production images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: deploy
+
+    # Placeholders that satisfy the Compose file's required variables; nothing runs with them.
+    env:
+      SITE_ADDRESS: imotsync.example
+      PUBLIC_BASE_URL: https://imotsync.example
+      JWT_SECRET: ci-only-placeholder
+      FEED_TOKEN: ci-only-placeholder
+      DB_PASSWORD: ci-only-placeholder
+      DB_ROOT_PASSWORD: ci-only-placeholder
+      SEED_DEMO_PASSWORD: ci-only-placeholder
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Check the Compose file
+        run: docker compose config --quiet
+
+      - name: Build the API and web images
+        run: docker compose build
+
+      - name: Check the Caddyfile
+        run: >-
+          docker run --rm -e SITE_ADDRESS -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro"
+          imotsync-web:latest caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+      - name: Check the server scripts
+        run: shellcheck demo-reset.sh backup-db.sh
+
   repo:
     name: Repository files
     runs-on: ubuntu-latest
@@ -212,4 +247,4 @@ jobs:
       # Files outside api/ and web/ belong to neither package's format:check, so they are checked
       # here with the root config. Keep the Prettier version in step with api/ and web/.
       - name: Check formatting
-        run: npx --yes prettier@3.10.1 --check README.md docs .github .vscode docker-compose.yml .prettierrc.json
+        run: npx --yes prettier@3.10.1 --check README.md docs deploy .github .vscode docker-compose.yml .prettierrc.json

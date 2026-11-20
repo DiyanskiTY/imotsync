@@ -58,16 +58,25 @@ export function feedUrlFor(publicBaseUrl: string, portal: string, token: string)
   return `${publicBaseUrl}/feeds/${encodeURIComponent(portal)}/${encodeURIComponent(token)}.xml`;
 }
 
-export function toPortalDto(
-  adapter: PortalAdapter,
-  feeds: { publicBaseUrl: string; token: string },
-): PortalDto {
+/** Where a deployment serves its feeds: PUBLIC_BASE_URL and FEED_TOKEN. */
+export interface FeedLocation {
+  publicBaseUrl: string;
+  token: string;
+}
+
+/**
+ * `feeds` is null where the feeds are closed (the public demo): no feed URL is shown, since
+ * none would answer.
+ */
+export function toPortalDto(adapter: PortalAdapter, feeds: FeedLocation | null): PortalDto {
   return {
     key: adapter.key,
     displayName: adapter.displayName,
     mode: adapter.mode,
     feedUrl:
-      adapter.mode === 'feed' ? feedUrlFor(feeds.publicBaseUrl, adapter.key, feeds.token) : null,
+      adapter.mode === 'feed' && feeds
+        ? feedUrlFor(feeds.publicBaseUrl, adapter.key, feeds.token)
+        : null,
   };
 }
 

@@ -91,8 +91,13 @@
 <section aria-labelledby="portals-heading" class="mt-10">
   <h2 id="portals-heading" class="mb-1 text-lg font-semibold text-color">Portals</h2>
   <p class="mb-4 text-sm text-muted-color">
-    Feed portals download their import feed from ImotSync. Register each feed URL once in the
-    portal's import settings and keep it private: the token in it protects the feed.
+    @if (demoMode()) {
+      Feed portals download their import feed from ImotSync. On this public demo the feeds are
+      closed; publish to the demo portal to watch jobs succeed, fail and retry.
+    } @else {
+      Feed portals download their import feed from ImotSync. Register each feed URL once in the
+      portal's import settings and keep it private: the token in it protects the feed.
+    }
   </p>
   <app-portal-feeds />
 </section>

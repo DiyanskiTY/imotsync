@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+  type WritableSignal,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -6,13 +13,15 @@ import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
 import { PasswordModule } from 'primeng/password';
-import { finalize, map } from 'rxjs';
+import { finalize, map, Observable } from 'rxjs';
 
 import { toApiError } from '../../core/api/api-error';
+import type { User } from '../../core/api/models';
 import { safeReturnUrl } from '../../core/auth/auth-guards';
 import { AuthSession } from '../../core/auth/auth-session';
+import { ClientConfigStore } from '../../core/client-config/client-config';
 
-/** Sign-in form, outside the app shell. */
+/** Sign-in form, outside the app shell. On the public demo, also the "Try the demo" button. */
 @Component({
   selector: 'app-login-page',
   imports: [ReactiveFormsModule, ButtonModule, InputTextModule, MessageModule, PasswordModule],
@@ -29,7 +38,11 @@ export class LoginPage {
     password: ['', Validators.required],
   });
 
+  /** The public demo: one click signs in the shared demo account. */
+  protected readonly demoMode = inject(ClientConfigStore).demoMode;
   protected readonly submitting = signal(false);
+  protected readonly startingDemo = signal(false);
+  protected readonly busy = computed(() => this.submitting() || this.startingDemo());
   protected readonly submitted = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly sessionEnded = computed(() => this.query().get('reason') === 'expired');
@@ -41,17 +54,27 @@ export class LoginPage {
 
   protected submit(): void {
     this.submitted.set(true);
-    if (this.form.invalid || this.submitting()) {
+    if (this.form.invalid || this.busy()) {
       return;
     }
     const { email, password } = this.form.getRawValue();
-    this.submitting.set(true);
+    this.signIn(this.session.login(email, password), this.submitting);
+  }
+
+  protected tryDemo(): void {
+    if (this.busy()) {
+      return;
+    }
+    this.signIn(this.session.loginToDemo(), this.startingDemo);
+  }
+
+  private signIn(user$: Observable<User>, pending: WritableSignal<boolean>): void {
+    pending.set(true);
     this.error.set(null);
-    this.session
-      .login(email, password)
+    user$
       .pipe(
         map(() => this.returnUrl()),
-        finalize(() => this.submitting.set(false)),
+        finalize(() => pending.set(false)),
       )
       .subscribe({
         next: (url) => void this.router.navigateByUrl(url),

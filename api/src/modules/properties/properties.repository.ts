@@ -51,6 +51,18 @@ export function createPropertyRepository(db: Knex) {
   const withCreator = () => db('properties').leftJoin('users', 'users.id', 'properties.created_by');
 
   return {
+    /**
+     * Properties that are not waiting to be deleted. A deleted property can stay archived for
+     * weeks while a feed still serves its removal; it no longer counts against a limit.
+     */
+    async countLive(): Promise<number> {
+      const row = await db('properties')
+        .whereNull('delete_requested_at')
+        .count<{ total: number | string }[]>({ total: '*' })
+        .first();
+      return Number(row?.total ?? 0);
+    },
+
     async list({ page, pageSize, filters, sort }: ListPage): Promise<{
       rows: PropertyListRow[];
       total: number;

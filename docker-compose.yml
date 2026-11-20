@@ -12,6 +12,8 @@ name: imotsync
 # signs login tokens.
 x-shared-environment: &shared-environment
   NODE_ENV: production
+  # true runs the public demo (README, Public demo); the server stack is in deploy/.
+  DEMO_MODE: ${DEMO_MODE:-false}
   UPLOAD_DIR: /app/uploads
   # The root file system is read-only (below): fontconfig, which sharp uses for the text on the
   # generated demo photos, keeps its cache in /tmp instead.

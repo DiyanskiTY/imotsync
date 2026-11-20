@@ -5,6 +5,8 @@ import { map, Observable } from 'rxjs';
 import type { LoginRequest, LoginResponse, User } from '../api/models';
 
 export const LOGIN_URL = '/api/auth/login';
+/** The public demo's shared account (GET /api/client-config says whether this is the demo). */
+export const DEMO_LOGIN_URL = '/api/auth/demo';
 export const AUTH_STORAGE_KEY = 'imotsync.session';
 
 interface StoredSession {
@@ -33,7 +35,16 @@ export class AuthSession {
 
   login(email: string, password: string): Observable<User> {
     const body: LoginRequest = { email, password };
-    return this.http.post<LoginResponse>(LOGIN_URL, body).pipe(
+    return this.start(this.http.post<LoginResponse>(LOGIN_URL, body));
+  }
+
+  /** Signs in the public demo's shared account; the API answers 404 anywhere else. */
+  loginToDemo(): Observable<User> {
+    return this.start(this.http.post<LoginResponse>(DEMO_LOGIN_URL, null));
+  }
+
+  private start(response$: Observable<LoginResponse>): Observable<User> {
+    return response$.pipe(
       map((response) => {
         this.save({
           accessToken: response.accessToken,

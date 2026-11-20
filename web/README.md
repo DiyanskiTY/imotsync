@@ -9,7 +9,7 @@ many at once), follow its status on every portal and retry failed jobs. See the
 
 | Route                                | What it does                                                                                                                                        |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/login`                             | Sign in; afterwards the user is back on the page they wanted. An expired session is explained                                                       |
+| `/login`                             | Sign in; afterwards the user is back on the page they wanted. An expired session is explained. On the public demo, also **Try the demo**            |
 | `/dashboard`                         | API and database status, and every portal with the feed URL to register in its import settings                                                      |
 | `/properties`                        | Filters, sorting and paging (all kept in the URL), the status on every portal, bulk publish and bulk delete                                         |
 | `/properties/new`, `/properties/:id` | The property form; photos (upload with progress, reorder by dragging or with buttons, delete); the pre-publish check per portal; publish and remove |
@@ -84,6 +84,16 @@ session ends on sign-out, at expiry, and on any `401`, which sends the user to t
 back afterwards. [Authentication](../docs/architecture.md#authentication) explains why the API
 uses a bearer token rather than a cookie.
 
+**Deployment settings.** Before the first page, `provideClientConfig()` loads the public
+`GET /api/client-config`: whether this is the [public demo](../README.md#public-demo) (then a
+banner sits above every page and the login page offers **Try the demo**, `POST /api/auth/demo`)
+and the photo upload limits, which the photo manager checks before it uploads. If the API cannot be
+reached, the defaults stay (not the demo, the API's default limits), and the API still applies its
+own. One static build therefore serves every deployment; in production Caddy serves it
+(`web/Dockerfile`, [docs/deploy.md](../docs/deploy.md)). The production build does not inline its
+critical CSS, because the `onload` handler that would load the rest is blocked by the Content
+Security Policy, which allows no inline scripts.
+
 ## Structure
 
 ```text
@@ -92,6 +102,7 @@ src/app/
 ├── core/
 │   ├── api/                               generated schema, models, one client per resource, ApiError
 │   ├── auth/                              session, interceptor, route guards
+│   ├── client-config/                     GET /api/client-config at start-up, the demo banner
 │   ├── app-title-strategy.ts              "<page> | ImotSync" browser tab titles
 │   ├── dev-hints.ts                       set-up hints shown in development builds only
 │   ├── health/health-api.ts               GET /api/health data access

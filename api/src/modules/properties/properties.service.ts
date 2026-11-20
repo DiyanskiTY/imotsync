@@ -85,6 +85,12 @@ export interface PropertiesServiceDeps {
    * a property whose removal a feed still serves is not deleted before that. Default: none.
    */
   removedRetentionDays?: ReadonlyMap<string, number>;
+  /**
+   * The most properties (not waiting to be deleted) the database may hold before create
+   * answers 409; the public demo sets one, so the shared database cannot be filled. Default
+   * (null or left out): no limit.
+   */
+  maxProperties?: number | null;
 }
 
 export function createPropertiesService(deps: PropertiesServiceDeps) {
@@ -148,6 +154,13 @@ export function createPropertiesService(deps: PropertiesServiceDeps) {
 
     async create(input: CreatePropertyInput, createdBy: number): Promise<PropertyDetailDto> {
       checkFloors(input.floor, input.totalFloors);
+      const maxProperties = deps.maxProperties ?? null;
+      // A soft cap: two creates at the same moment may both pass, which is harmless here.
+      if (maxProperties !== null && (await properties.countLive()) >= maxProperties) {
+        throw conflict(
+          `This demo holds at most ${maxProperties} properties. Delete one first; the demo data is reset every night.`,
+        );
+      }
       const chosenRefCode = input.refCode ?? null;
 
       let id: number;

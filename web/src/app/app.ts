@@ -1,11 +1,24 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
-/** Root component. The visible layout lives in Shell, so future pages (e.g. login) can opt out of it. */
+import { ClientConfigStore } from './core/client-config/client-config';
+import { DemoBanner } from './core/client-config/demo-banner';
+
+/**
+ * Root component. The visible layout lives in Shell, so pages such as login can opt out of it;
+ * the public demo's banner sits above both, so it is on every page.
+ */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
-  template: '<router-outlet />',
+  imports: [RouterOutlet, DemoBanner],
+  template: `
+    @if (demoMode()) {
+      <app-demo-banner />
+    }
+    <router-outlet />
+  `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class App {}
+export class App {
+  protected readonly demoMode = inject(ClientConfigStore).demoMode;
+}

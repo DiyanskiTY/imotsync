@@ -134,6 +134,8 @@ const envSchema = z
     // Lets NODE_ENV=production run with an http:// or local PUBLIC_BASE_URL: only for local
     // runs of the production build (the Docker Compose stack, CI), never for a real server.
     ALLOW_INSECURE_PUBLIC_BASE_URL: z.stringbool().default(false),
+    // The public demo: a shared demo login, lower limits and no feeds (README, Demo mode).
+    DEMO_MODE: z.stringbool().default(false),
 
     // --- Publishing ---
     // The origin portals reach this server at: photo URLs in feeds are PUBLIC_BASE_URL + /uploads/...
@@ -195,6 +197,16 @@ const envSchema = z
         message: `must be at least JOB_TIMEOUT_SECONDS + ${JOB_LOCK_MARGIN_SECONDS} (${
           env.JOB_TIMEOUT_SECONDS + JOB_LOCK_MARGIN_SECONDS
         })`,
+      });
+    }
+
+    // The demo's listings are made up: the one outbound portal call (the Realistimo import
+    // sync) must stay off, whatever else the environment says.
+    if (env.DEMO_MODE && env.REALISTIMO_API_KEY !== '') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['REALISTIMO_API_KEY'],
+        message: 'must be empty when DEMO_MODE=true: the demo never talks to a real portal',
       });
     }
 
@@ -333,6 +345,11 @@ export interface Config {
     /** ALLOW_DEMO_SEED: lets the demo seed (and reset) run when NODE_ENV=production. */
     allowInProduction: boolean;
   };
+  /**
+   * DEMO_MODE: the public demo. Adds the shared demo login, lowers the upload and request
+   * limits and closes the feeds, so the made-up listings never reach a portal.
+   */
+  demoMode: boolean;
   /** PUBLIC_BASE_URL: the origin portals reach this server at, without a trailing slash. */
   publicBaseUrl: string;
   feeds: {
@@ -390,6 +407,7 @@ export function parseConfig(
       demoPassword: e.SEED_DEMO_PASSWORD,
       allowInProduction: e.ALLOW_DEMO_SEED,
     },
+    demoMode: e.DEMO_MODE,
     publicBaseUrl: e.PUBLIC_BASE_URL,
     feeds: { token: e.FEED_TOKEN },
     worker: {

@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ImotSync API",
-    "version": "0.4.0",
-    "description": "Prepare a property once and publish it to several real estate portals through their official import feeds.\n\n**Authentication.** `POST /auth/login` returns a JWT. Send it as `Authorization: Bearer <token>` (in this page: **Authorize**). Every operation needs it except the health check, login, this document and the feeds (`/feeds/{portal}/{token}.xml`, outside `/api`, protected by the token in the path).\n\n**Errors** always look like `{\"error\":{\"code\",\"message\",\"details\"?}}`; `details` lists per-field problems for `VALIDATION_ERROR`.\n\n**Conventions.** JSON fields are camelCase, times are ISO 8601 in UTC, prices and areas are numbers."
+    "version": "0.5.0",
+    "description": "Prepare a property once and publish it to several real estate portals through their official import feeds.\n\n**Authentication.** `POST /auth/login` returns a JWT. Send it as `Authorization: Bearer <token>` (in this page: **Authorize**). Every operation needs it except the health check, login, the demo sign-in, the client configuration, this document and the feeds (`/feeds/{portal}/{token}.xml`, outside `/api`, protected by the token in the path).\n\n**Errors** always look like `{\"error\":{\"code\",\"message\",\"details\"?}}`; `details` lists per-field problems for `VALIDATION_ERROR`.\n\n**Conventions.** JSON fields are camelCase, times are ISO 8601 in UTC, prices and areas are numbers.\n\n**Public demo.** When `GET /client-config` reports `demoMode`, the data is made up and reset every night, the feeds are closed, photo uploads have lower limits (`uploadLimits`), at most 50 properties can exist (10 new ones per hour per address), and every operation may answer `429 TOO_MANY_REQUESTS` when one address sends too many requests."
   },
   "servers": [
     {
@@ -79,6 +79,32 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/client-config": {
+      "get": {
+        "operationId": "getClientConfig",
+        "summary": "Client configuration",
+        "description": "What the admin panel adapts to before anyone signs in: whether this is the public demo, and the photo upload limits.",
+        "tags": [
+          "System"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientConfig"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       }
@@ -174,6 +200,45 @@
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/auth/demo": {
+      "post": {
+        "operationId": "demoLogin",
+        "summary": "Try the demo",
+        "description": "Public demo only (GET /client-config says demoMode): signs in the shared demo account without a password. Limited to about 20 sign-ins per 15 minutes per client IP. Answers 404 on any other deployment.",
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Signed in as the demo account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: this deployment is not the public demo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -1646,6 +1711,53 @@
         "properties": {
           "user": {
             "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "ClientConfig": {
+        "type": "object",
+        "required": [
+          "demoMode",
+          "uploadLimits"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "demoMode": {
+            "type": "boolean",
+            "description": "true on the public demo (DEMO_MODE): made-up data reset every night, POST /auth/demo signs in the shared demo account, and the feeds are closed."
+          },
+          "uploadLimits": {
+            "type": "object",
+            "required": [
+              "maxFileBytes",
+              "maxFilesPerRequest",
+              "maxPerProperty"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "maxFileBytes": {
+                "type": "integer",
+                "minimum": 1,
+                "examples": [
+                  15728640
+                ]
+              },
+              "maxFilesPerRequest": {
+                "type": "integer",
+                "minimum": 1,
+                "examples": [
+                  20
+                ]
+              },
+              "maxPerProperty": {
+                "type": "integer",
+                "minimum": 1,
+                "examples": [
+                  40
+                ]
+              }
+            },
+            "description": "Photo upload limits of this deployment (lower on the public demo)."
           }
         }
       },

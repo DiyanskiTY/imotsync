@@ -8,7 +8,7 @@ import {
   USER_ROLES,
 } from '../db/types.js';
 import { API_ERROR_CODES } from '../lib/http-error.js';
-import { PHOTO_LIMITS } from '../modules/images/image-processing.js';
+import { DEFAULT_UPLOAD_LIMITS } from '../modules/images/image-processing.js';
 import { FIELD_LIMITS } from '../modules/properties/properties.validators.js';
 import { BULK_DELETE_RESULTS } from '../modules/publishing/publishing.mappers.js';
 import { BULK_MAX_PROPERTIES } from '../modules/publishing/publishing.validators.js';
@@ -237,6 +237,22 @@ export const schemas: Record<string, JsonSchema> = {
 
   CurrentUser: object({ user: ref('User') }),
 
+  ClientConfig: object({
+    demoMode: {
+      type: 'boolean',
+      description:
+        'true on the public demo (DEMO_MODE): made-up data reset every night, POST /auth/demo signs in the shared demo account, and the feeds are closed.',
+    },
+    uploadLimits: object(
+      {
+        maxFileBytes: { type: 'integer', minimum: 1, examples: [15 * 1024 * 1024] },
+        maxFilesPerRequest: { type: 'integer', minimum: 1, examples: [20] },
+        maxPerProperty: { type: 'integer', minimum: 1, examples: [40] },
+      },
+      { description: 'Photo upload limits of this deployment (lower on the public demo).' },
+    ),
+  }),
+
   CreatedBy: object({
     id: id('User id.'),
     fullName: { type: 'string', examples: ['Demo Broker'] },
@@ -387,7 +403,7 @@ export const schemas: Record<string, JsonSchema> = {
       type: 'array',
       items: { type: 'integer', minimum: 1 },
       uniqueItems: true,
-      maxItems: PHOTO_LIMITS.maxPerProperty,
+      maxItems: DEFAULT_UPLOAD_LIMITS.maxPerProperty,
       description: 'Every photo id of the property exactly once, in the new display order.',
       examples: [[12, 10, 11]],
     },

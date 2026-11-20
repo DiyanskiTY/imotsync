@@ -7,6 +7,7 @@ import { providePrimeNG } from 'primeng/config';
 import { routes } from './app.routes';
 import { AppTitleStrategy } from './core/app-title-strategy';
 import { authInterceptor } from './core/auth/auth-interceptor';
+import { provideClientConfig } from './core/client-config/client-config';
 import { AppPreset } from './core/theme/app-preset';
 
 export const appConfig: ApplicationConfig = {
@@ -15,6 +16,8 @@ export const appConfig: ApplicationConfig = {
     // The default XHR backend is kept on purpose: photo uploads need upload progress events.
     provideHttpClient(withInterceptors([authInterceptor])),
     provideRouter(routes),
+    // Whether this is the public demo, and the API's photo limits, before the first page.
+    provideClientConfig(),
     { provide: TitleStrategy, useClass: AppTitleStrategy },
     // App-wide toasts and confirmation dialogs, rendered once in the Shell.
     MessageService,

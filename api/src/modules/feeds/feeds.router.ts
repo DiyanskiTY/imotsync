@@ -50,3 +50,15 @@ export function createFeedsRouter(deps: { feeds: FeedsService }): Router {
 
   return router;
 }
+
+/**
+ * The feeds of the public demo: closed. Every path answers the same plain 404 as a wrong
+ * token, so the made-up listings can never be imported, whoever knows the token.
+ */
+export function createClosedFeedsRouter(): Router {
+  const router = Router();
+  router.use((_req, res) => {
+    feedNotFound(res);
+  });
+  return router;
+}

@@ -35,9 +35,10 @@ import { ImagesApi, UploadProgress } from '../../core/api/images-api';
 import type { PropertyImage } from '../../core/api/models';
 import { injectConfirmDestructive } from '../../shared/confirm-destructive';
 import { Photo } from '../../shared/photo';
+import { ClientConfigStore } from '../../core/client-config/client-config';
 import {
   ACCEPT_ATTRIBUTE,
-  PHOTO_LIMITS,
+  formatMegabytes,
   planPhotoUpload,
   RejectedPhoto,
 } from './photo-upload-plan';
@@ -90,8 +91,10 @@ export class PhotoManager {
   protected readonly uploadError = signal<string | null>(null);
   protected readonly rejected = signal<RejectedPhoto[]>([]);
   protected readonly accept = ACCEPT_ATTRIBUTE;
-  protected readonly maxPhotos = PHOTO_LIMITS.maxPerProperty;
-  protected readonly full = computed(() => this.photos().length >= this.maxPhotos);
+  private readonly limits = inject(ClientConfigStore).uploadLimits;
+  protected readonly maxPhotos = computed(() => this.limits().maxPerProperty);
+  protected readonly maxFileSize = computed(() => formatMegabytes(this.limits().maxFileBytes));
+  protected readonly full = computed(() => this.photos().length >= this.maxPhotos());
 
   constructor() {
     this.reorders
@@ -152,7 +155,7 @@ export class PhotoManager {
   }
 
   private upload(files: File[]): void {
-    const plan = planPhotoUpload(files, this.photos().length);
+    const plan = planPhotoUpload(files, this.photos().length, this.limits());
     this.rejected.set(plan.rejected);
     this.uploadError.set(null);
     if (plan.batches.length === 0) {

@@ -8,6 +8,7 @@ import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
 import { finalize, startWith, Subject } from 'rxjs';
 
+import { ClientConfigStore } from '../../core/client-config/client-config';
 import { SHOW_DEV_HINTS } from '../../core/dev-hints';
 import { HealthApi, HealthReport } from '../../core/health/health-api';
 import { formatUptime } from '../../shared/format-uptime';
@@ -53,6 +54,7 @@ export class DashboardPage {
 
   /** Development builds explain how to start the API and the database; production builds do not. */
   protected readonly showDevHints = inject(SHOW_DEV_HINTS);
+  protected readonly demoMode = inject(ClientConfigStore).demoMode;
 
   /** When the last check finished, successfully or not; null until the first one has. */
   protected readonly checkedAt = signal<Date | null>(null);
